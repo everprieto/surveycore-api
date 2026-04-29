@@ -83,8 +83,8 @@ class QuestionResponse(BaseModel):
     status: str
     answer_type: str
     created_by: int
-    created_at: datetime
-    published_at: Optional[datetime]
+    created_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
     translations: List[QuestionTranslationResponse]
     options: List[QuestionOptionResponse]
 
@@ -98,7 +98,7 @@ class QuestionListResponse(BaseModel):
     logical_code: str
     status: str
     answer_type: str
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

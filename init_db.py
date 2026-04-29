@@ -2,12 +2,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from surveycore_api.models import Base, User, MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation, Project, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess, SurveyResponse, SurveyAnswer
 from surveycore_api.auth.password import get_password_hash
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./survey.db")
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required. Configure in .env file.")
+engine = create_engine(DATABASE_URL)
 
 Base.metadata.create_all(engine)
 

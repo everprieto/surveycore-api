@@ -8,7 +8,7 @@ REST API for SurveyCore — multi-language survey management with role-based acc
 |---|---|
 | **Framework** | FastAPI 0.109 · Python 3.13 |
 | **ORM** | SQLAlchemy 2.0 |
-| **Database** | SQLite (dev) · PostgreSQL (prod) |
+| **Database** | PostgreSQL on Neon (all environments) |
 | **Auth** | JWT HS256 · Microsoft Entra ID (JWKS) |
 
 ---
@@ -72,7 +72,7 @@ Copy `.env.example` to `.env` and fill in:
 | Variable | Description |
 |---|---|
 | `SECRET_KEY` | Min 32 chars — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `DATABASE_URL` | `sqlite:///./survey.db` for dev, PostgreSQL URL for prod |
+| `DATABASE_URL` | PostgreSQL on Neon: `postgresql+psycopg://user:pass@host/db?sslmode=require&channel_binding=require` |
 | `CORS_ORIGINS` | Comma-separated allowed origins (e.g. `http://localhost:5173`) |
 | `AZURE_TENANT_ID` | Entra ID tenant — optional, only needed for SSO |
 | `AZURE_CLIENT_ID` | Entra ID client — optional, only needed for SSO |

@@ -91,7 +91,7 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True)
 
-    project_code = Column(String, index=True)
+    project_code = Column(String, unique=True, index=True, nullable=False)
     project_name = Column(String, index=True)
 
     client_name = Column(String, index=True)

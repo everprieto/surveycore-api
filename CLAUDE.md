@@ -204,7 +204,7 @@ db = SessionLocal()
 SECRET_KEY=<mín 32 chars>
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=480
-DATABASE_URL=sqlite:///./survey.db
+DATABASE_URL=postgresql+psycopg://neondb_owner:password@host-pooler:5432/surveycore_qa?sslmode=require&channel_binding=require
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 AZURE_TENANT_ID=0a964db6-c0c3-43a8-af0d-bccc2d2bd487
 AZURE_CLIENT_ID=571c0742-cd9d-4b30-9c88-692a4e7c37fa

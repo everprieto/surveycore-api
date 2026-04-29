@@ -61,10 +61,12 @@ Each branch has its own connection string with slightly different host.
 
 ## Configure Your .env Files
 
-### Local Development (SQLite)
+All environments use PostgreSQL on Neon.
+
+### Local Development
 ```bash
 # .env
-DATABASE_URL=sqlite:///./survey.db
+DATABASE_URL=postgresql+psycopg://neondb_owner:your-password@ep-flat-recipe-amd6ml1k-pooler.c-5.us-east-1.aws.neon.tech/surveycore_qa?sslmode=require&channel_binding=require
 ```
 
 ### QA Deployment
@@ -141,35 +143,13 @@ deploy_production:
 
 If you have existing SQLite data and want to migrate:
 
-### Option 1: Manual Export/Import
+### Manual Data Transfer (if needed)
+
+If you have existing data in another database:
 
 ```bash
-# Export SQLite to SQL
-sqlite3 survey.db .dump > backup.sql
-
-# Import into PostgreSQL (using psql)
-psql -h your-neon-host -U neondb_owner -d surveycore_qa -f backup.sql
-```
-
-### Option 2: Using Python Script
-
-```python
-# migrate_db.py
-from sqlalchemy import create_engine, inspect, text
-import sqlite3
-
-sqlite_engine = create_engine('sqlite:///./survey.db')
-pg_engine = create_engine('postgresql://user:pass@host/db')
-
-# Get all tables
-inspector = inspect(sqlite_engine)
-for table_name in inspector.get_table_names():
-    # Read from SQLite
-    df = pd.read_sql_table(table_name, sqlite_engine)
-    # Write to PostgreSQL
-    df.to_sql(table_name, pg_engine, if_exists='append', index=False)
-
-print("Migration complete!")
+# Using psql to connect to Neon and restore from SQL dump
+psql postgresql://neondb_owner:password@host:5432/surveycore_qa < backup.sql
 ```
 
 ## Monitoring & Backups
@@ -211,8 +191,8 @@ print("Migration complete!")
 
 | Environment | Database | Connection String Location |
 |-------------|----------|---------------------------|
-| Local | SQLite | `.env` (DATABASE_URL=sqlite:///) |
-| QA | PostgreSQL (Neon) | GitHub Secret `NEON_DATABASE_URL_QA` |
-| Production | PostgreSQL (Neon) | GitHub Secret `NEON_DATABASE_URL_PRODUCTION` |
+| Local | PostgreSQL (Neon) | `.env` (DATABASE_URL=postgresql+psycopg://...) |
+| QA | PostgreSQL (Neon) | `.env` or GitHub Secret `NEON_DATABASE_URL_QA` |
+| Production | PostgreSQL (Neon) | `.env` or GitHub Secret `NEON_DATABASE_URL_PRODUCTION` |
 
-The API automatically creates all required tables on startup.
+The API automatically creates all required tables on startup using SQLAlchemy ORM.

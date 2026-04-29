@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 import os
 
 from .routers import auth, questions, projects, surveys, public, results, admin
+from .database import engine
+from .models import Base
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +31,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create database tables on startup
+@app.on_event("startup")
+def startup_event():
+    Base.metadata.create_all(bind=engine)
 
 # Include routers
 app.include_router(auth.router)

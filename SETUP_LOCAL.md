@@ -46,7 +46,7 @@ The `.env` file (created above) contains:
 SECRET_KEY=change-me-min-32-chars-long-random-string
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=480
-DATABASE_URL=sqlite:///./survey.db
+DATABASE_URL=postgresql+psycopg://user:password@host:port/database?sslmode=require&channel_binding=require
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 AZURE_TENANT_ID=
 AZURE_CLIENT_ID=
@@ -63,24 +63,16 @@ Leave blank if you're using email/password auth only.
 
 ## Database
 
-### Development (SQLite)
-By default, the API uses **SQLite** locally (`survey.db`). Tables are auto-created on startup.
-
-To reset the database:
-```bash
-rm survey.db
-# Restart the API — tables will be recreated
-```
-
-### Production (PostgreSQL on Neon)
-For QA and production deployments, the API uses **PostgreSQL on Neon**.
+The API uses **PostgreSQL on Neon** for all environments (local, QA, production).
 
 Update `DATABASE_URL` in `.env`:
 ```
-DATABASE_URL=postgresql://user:password@host:port/database?sslmode=require
+DATABASE_URL=postgresql+psycopg://user:password@host:port/database?sslmode=require&channel_binding=require
 ```
 
-Get your Neon connection string from: https://console.neon.tech → Projects → Connection string
+Tables are auto-created on startup. Get your Neon connection string from: https://console.neon.tech → Projects → Connection string
+
+To reset the database in Neon, use the SQL Editor or connect with `psql` and drop/recreate tables as needed.
 
 ## Common Commands
 
@@ -128,9 +120,10 @@ If you get CORS errors:
 |-------|----------|
 | `ModuleNotFoundError: No module named 'surveycore_api'` | Ensure you're in the repo root and have activated venv |
 | `Address already in use :8000` | Another app is using port 8000. Use `--port 9000` instead |
-| `DATABASE_URL not found` | Create `.env` from `.env.example` |
+| `DATABASE_URL not found` | Create `.env` from `.env.example` with valid Neon PostgreSQL connection string |
 | CORS error from frontend | Update `CORS_ORIGINS` in `.env` to include frontend URL |
-| SQLite locked error | Close other Python processes accessing `survey.db` |
+| `psycopg connection refused` | Verify DATABASE_URL is correct and Neon is accessible |
+| `too many connections` | Neon pool limit reached; close unused connections or upgrade plan |
 
 ## Documentation
 
