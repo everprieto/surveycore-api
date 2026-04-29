@@ -1,0 +1,95 @@
+"""Survey schemas."""
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime, date
+
+
+class SurveyCreate(BaseModel):
+    """Create new survey."""
+    project_id: int
+    survey_type: str
+    language_code: str
+    planned_send_date: date
+
+
+class SurveyUpdate(BaseModel):
+    """Update survey."""
+    survey_type: Optional[str] = None
+    language_code: Optional[str] = None
+    planned_send_date: Optional[datetime] = None
+    survey_status: Optional[str] = None
+
+
+class SurveyResponse(BaseModel):
+    """Survey response."""
+    id: int
+    project_id: int
+    survey_type: str
+    language_code: str
+    created_by: int
+    created_at: datetime
+    planned_send_date: Optional[datetime] = None
+    survey_status: str
+
+    class Config:
+        from_attributes = True
+
+
+class SurveyQuestionAdd(BaseModel):
+    """Add question to survey."""
+    master_question_id: int
+
+
+class SurveyQuestionResponse(BaseModel):
+    """Survey question response."""
+    id: int
+    survey_id: int
+    master_question_id: int
+    display_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class RecipientCreate(BaseModel):
+    """Create survey recipient."""
+    recipient_name: str
+    recipient_email: str
+    company: str
+    role: str
+
+
+class RecipientResponse(BaseModel):
+    """Survey recipient response."""
+    id: int
+    survey_id: int
+    recipient_name: str
+    recipient_email: str
+    company: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+class AccessLinkResponse(BaseModel):
+    """Survey access link response."""
+    id: int
+    survey_id: int
+    recipient_id: int
+    access_token: str
+    status: str
+    created_at: datetime
+    opened_at: Optional[datetime]
+    completed_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class SurveyConfigResponse(BaseModel):
+    """Complete survey configuration."""
+    survey: SurveyResponse
+    questions: List[SurveyQuestionResponse]
+    recipients: List[RecipientResponse]
+    access_links: List[AccessLinkResponse]
