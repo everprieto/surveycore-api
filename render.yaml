@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: surveycore-api-qa
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn surveycore_api.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: surveycore-qa-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AZURE_TENANT_ID
+        value: 0a964db6-c0c3-43a8-af0d-bccc2d2bd487
+      - key: AZURE_CLIENT_ID
+        value: 4012c112-0db8-4411-85e5-907edceb644e
+      - key: AZURE_CLIENT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://surveycore-qa.onrender.com,http://localhost:5173,http://localhost:3000
+
+databases:
+  - name: surveycore-qa-db
+    databaseName: surveycore_qa
+    region: oregon
+    plan: free
