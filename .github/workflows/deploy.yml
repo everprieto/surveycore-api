@@ -1,0 +1,72 @@
+name: Build and Deploy Backend
+
+on:
+  push:
+    branches:
+      - dev
+      - qa
+      - main
+  pull_request:
+    branches:
+      - dev
+      - qa
+      - main
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    name: Build and Test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run linter
+        run: flake8 surveycore_api --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  deploy_qa:
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    name: Deploy to QA
+    if: github.event_name == 'push' && github.ref == 'refs/heads/qa'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env.qa with Neon credentials
+        run: |
+          cp .env.qa.example .env
+          sed -i "s|DATABASE_URL=.*|DATABASE_URL=${{ secrets.NEON_DATABASE_URL_QA }}|g" .env
+
+      - name: Deploy to Azure App Service (QA)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'surveycore-api-qa'
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_QA }}
+          package: .
+
+  deploy_production:
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env.production with Neon credentials
+        run: |
+          cp .env.production.example .env
+          sed -i "s|DATABASE_URL=.*|DATABASE_URL=${{ secrets.NEON_DATABASE_URL_PRODUCTION }}|g" .env
+
+      - name: Deploy to Azure App Service (Production)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'surveycore-api'
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_PRODUCTION }}
+          package: .
