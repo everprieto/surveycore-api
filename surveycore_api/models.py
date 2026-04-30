@@ -148,6 +148,8 @@ class SurveyQuestion(Base):
 
     display_order = Column(Integer)
 
+    is_required = Column(Boolean, default=False)
+
 
 # -------------------------
 # SurveyRecipient

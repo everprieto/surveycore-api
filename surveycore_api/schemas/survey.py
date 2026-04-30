@@ -40,12 +40,18 @@ class SurveyQuestionAdd(BaseModel):
     master_question_id: int
 
 
+class SurveyQuestionUpdate(BaseModel):
+    """Update survey question."""
+    is_required: Optional[bool] = None
+
+
 class SurveyQuestionResponse(BaseModel):
     """Survey question response."""
     id: int
     survey_id: int
     master_question_id: int
     display_order: int
+    is_required: bool = False
 
     class Config:
         from_attributes = True

@@ -11,7 +11,7 @@ from ..models import (
 )
 from ..schemas.survey import (
     SurveyCreate, SurveyUpdate, SurveyResponse,
-    SurveyQuestionAdd, SurveyQuestionResponse,
+    SurveyQuestionAdd, SurveyQuestionUpdate, SurveyQuestionResponse,
     RecipientCreate, RecipientResponse,
     AccessLinkResponse, SurveyConfigResponse,
 )
@@ -156,6 +156,29 @@ def remove_question_from_survey(
     return None
 
 
+@router.patch("/{survey_id}/questions/{sq_id}", response_model=SurveyQuestionResponse)
+def update_question_in_survey(
+    survey_id: int,
+    sq_id: int,
+    question_data: SurveyQuestionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("survey.edit")),
+):
+    sq = db.get(SurveyQuestion, sq_id)
+    if not sq or sq.survey_id != survey_id:
+        raise HTTPException(status_code=404, detail="Survey question not found")
+
+    survey = db.get(Survey, survey_id)
+    _check_survey_scope(survey, current_user, db)
+
+    if question_data.is_required is not None:
+        sq.is_required = question_data.is_required
+
+    db.commit()
+    db.refresh(sq)
+    return sq
+
+
 @router.post("/{survey_id}/recipients", response_model=RecipientResponse, status_code=status.HTTP_201_CREATED)
 def add_recipient(
     survey_id: int,
@@ -279,6 +302,7 @@ def preview_survey(
             answer_type=master.answer_type,
             question_text=question_text,
             options=options,
+            is_required=sq.is_required,
         ))
 
     return SurveyTakeResponse(

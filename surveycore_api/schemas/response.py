@@ -10,6 +10,7 @@ class QuestionForSurvey(BaseModel):
     answer_type: str
     question_text: str
     options: List[dict]  # [{id: int, text: str}]
+    is_required: bool = False
 
 
 class SurveyTakeResponse(BaseModel):

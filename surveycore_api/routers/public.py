@@ -85,7 +85,8 @@ def get_survey_by_token(token: str, db: Session = Depends(get_db)):
             sq_id=sq.id,
             answer_type=master.answer_type,
             question_text=question_text,
-            options=options
+            options=options,
+            is_required=sq.is_required,
         ))
 
     return SurveyTakeResponse(
