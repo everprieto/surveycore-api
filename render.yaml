@@ -22,7 +22,7 @@ services:
       - key: AZURE_CLIENT_SECRET
         sync: false
       - key: CORS_ORIGINS
-        value: https://surveycore-qa.onrender.com,http://localhost:5173,http://localhost:3000
+        value: https://surveycore-qa.onrender.com,https://happy-smoke-01be95e1e.7.azurestaticapps.net,http://localhost:5173,http://localhost:3000
 
 databases:
   - name: surveycore-qa-db
