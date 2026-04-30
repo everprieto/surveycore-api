@@ -1,52 +1,94 @@
-# GitHub Setup — Backend Deployment
+# GitHub Setup — Backend (surveycore-api)
 
-This document describes how to configure GitHub Secrets for automated backend deployments to Azure.
+## Overview
 
-## Required Secrets
+The backend uses **Render.com for deployment**. Render connects directly to GitHub and deploys via `render.yaml` — **no GitHub Secrets or Actions workflows are needed**.
 
-Configure these secrets in your GitHub repository settings → Secrets and variables → Actions:
+Deployment happens automatically:
+1. Push to `qa` branch → Render detects push and redeployment
+2. Render reads `render.yaml` from the repository
+3. Render creates/updates PostgreSQL database and environment variables
+4. Render builds and deploys the application
 
-### Azure Secrets (2 required)
-| Secret Name | Value | Source |
-|-------------|-------|--------|
-| `AZURE_PUBLISH_PROFILE_QA` | QA App Service publish profile (XML) | Azure Portal |
-| `AZURE_PUBLISH_PROFILE_PRODUCTION` | Production App Service publish profile (XML) | Azure Portal |
+## Branches & Deployment
 
-### Neon Secrets (2 required)
-| Secret Name | Value | Source |
-|-------------|-------|--------|
-| `NEON_DATABASE_URL_QA` | QA PostgreSQL connection string | Neon Console |
-| `NEON_DATABASE_URL_PRODUCTION` | Production PostgreSQL connection string | Neon Console |
+| Branch | Platform | URL | Auto-Deploy |
+|--------|----------|-----|-------------|
+| `dev` | Local | `http://localhost:8000` | N/A |
+| `qa` | Render.com | `https://surveycore-api.onrender.com` | Yes ✅ |
+| `main` | Render.com | `https://surveycore-api.onrender.com` | Yes ✅ |
 
-**Total: 4 secrets to configure**
+## GitHub Configuration
 
-## How to Get Secrets
+### 1. Connect Render to GitHub
 
-### Azure Publish Profiles
+1. Go to https://render.com/dashboard
+2. Click **New +** → **Web Service**
+3. Select **Build and deploy from a Git repository**
+4. Click **Connect account** and authenticate with GitHub
+5. Select your `surveycore-api` repository
+6. Select branch: `qa`
+7. Render will auto-detect `render.yaml`
+8. Click **Create Web Service**
 
-#### 1. From Azure Portal — QA Environment
-- Go to **Azure Portal** → search **surveycore-api-qa** (App Service)
-- Click **Get publish profile** (download button at top)
-- Copy the entire XML content
-- In GitHub → **Settings** → **Secrets and variables** → **Actions**
-- Click **New repository secret**
-- Name: `AZURE_PUBLISH_PROFILE_QA`
-- Value: (paste the XML)
-- Click **Add secret**
+Render will automatically:
+- Create PostgreSQL database (surveycore-qa-db)
+- Configure environment variables from `render.yaml`
+- Deploy the application
 
-#### 2. From Azure Portal — Production Environment
-- Go to **Azure Portal** → search **surveycore-api** (App Service)
-- Click **Get publish profile** (download button at top)
-- Copy the entire XML content
-- In GitHub → **Settings** → **Secrets and variables** → **Actions**
-- Click **New repository secret**
-- Name: `AZURE_PUBLISH_PROFILE_PRODUCTION`
-- Value: (paste the XML)
-- Click **Add secret**
+### 2. Environment Variables in Render
 
-### Neon PostgreSQL Connection Strings
+Variables are configured in `render.yaml` or Render dashboard:
 
-#### 3. From Neon Console — QA Database
+| Variable | Auto-Generated | Manual |
+|----------|---|---|
+| `DATABASE_URL` | ✅ From database connection | - |
+| `SECRET_KEY` | ✅ Auto-generated | - |
+| `PYTHON_VERSION` | - | ✅ `render.yaml` |
+| `AZURE_TENANT_ID` | - | ✅ `render.yaml` |
+| `AZURE_CLIENT_ID` | - | ✅ `render.yaml` |
+| `AZURE_CLIENT_SECRET` | - | ✅ Manual in Render dashboard |
+| `CORS_ORIGINS` | - | ✅ `render.yaml` |
+
+### 3. Update CORS Origins
+
+When deploying frontend to Azure Static Web Apps:
+
+1. Update `render.yaml` → `CORS_ORIGINS`:
+   ```yaml
+   value: https://surveycore-qa.onrender.com,https://[YOUR-AZURE-URL].azurestaticapps.net,http://localhost:5173
+   ```
+
+2. Push to `qa`:
+   ```bash
+   git push origin qa
+   ```
+
+3. Render auto-redeploys with updated CORS configuration
+
+## No GitHub Secrets Required
+
+Since Render doesn't use GitHub Actions:
+- ❌ No GitHub Secrets needed for backend deployment
+- ❌ No workflow files (.github/workflows/) needed
+- ✅ Use `render.yaml` for infrastructure as code
+
+## Monitoring
+
+Monitor deployments in **Render dashboard**:
+1. Go to https://render.com/dashboard
+2. Click on `surveycore-api-qa`
+3. View **Logs** tab for build/deployment output
+4. View **Metrics** tab for CPU, memory, requests
+
+## Troubleshooting
+
+| Issue | Solution |
+|---|---|
+| Deployment fails: "render.yaml not found" | Ensure `render.yaml` is in repository root and committed |
+| Database connection fails | Check `DATABASE_URL` in Render environment variables |
+| Import errors after deploy | Ensure `setup.py` exists and `requirements.txt` has `-e .` |
+| Environment variable not updated | Render may need manual save in dashboard if using UI |
 
 1. Go to [https://console.neon.tech](https://console.neon.tech)
 2. Select your project
