@@ -9,3 +9,5 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 requests==2.32.3
+azure-communication-email==1.1.0
+PyJWT==2.8.1
