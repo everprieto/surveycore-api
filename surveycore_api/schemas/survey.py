@@ -99,3 +99,16 @@ class SurveyConfigResponse(BaseModel):
     questions: List[SurveyQuestionResponse]
     recipients: List[RecipientResponse]
     access_links: List[AccessLinkResponse]
+
+
+class SendEmailRequest(BaseModel):
+    """Request to send survey emails."""
+    recipient_ids: Optional[List[int]] = None  # None = send to all
+
+
+class SendEmailResponse(BaseModel):
+    """Email sending response."""
+    success_count: int
+    failed_count: int
+    total: int
+    errors: List[str]

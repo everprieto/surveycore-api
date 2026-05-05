@@ -27,8 +27,8 @@ def get_survey_by_token(token: str, db: Session = Depends(get_db)):
     if access.status == "COMPLETED":
         raise HTTPException(status_code=400, detail="Survey already completed")
 
-    # Update status to OPENED if PENDING
-    if access.status == "PENDING":
+    # Update status to OPENED if PENDING or SENT
+    if access.status in ["PENDING", "SENT"]:
         access.status = "OPENED"
         access.opened_at = datetime.utcnow()
         db.commit()

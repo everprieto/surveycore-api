@@ -8,12 +8,14 @@ from ..dependencies import get_db
 from ..models import (
     User, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess,
     MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation,
+    SurveyAnswer, SurveyResponse as SurveyResponseModel,
 )
 from ..schemas.survey import (
     SurveyCreate, SurveyUpdate, SurveyResponse,
     SurveyQuestionAdd, SurveyQuestionUpdate, SurveyQuestionResponse,
     RecipientCreate, RecipientResponse,
     AccessLinkResponse, SurveyConfigResponse,
+    SendEmailRequest, SendEmailResponse,
 )
 from ..schemas.response import SurveyTakeResponse, QuestionForSurvey
 from ..auth.permissions import require_permission, get_user_project_ids
@@ -144,16 +146,20 @@ def remove_question_from_survey(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("survey.edit")),
 ):
+    survey = db.get(Survey, survey_id)
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    _check_survey_scope(survey, current_user, db)
+
     sq = db.get(SurveyQuestion, sq_id)
     if not sq or sq.survey_id != survey_id:
         raise HTTPException(status_code=404, detail="Survey question not found")
 
-    survey = db.get(Survey, survey_id)
-    _check_survey_scope(survey, current_user, db)
-
+    # Delete dependent SurveyAnswer records before deleting the question
+    db.query(SurveyAnswer).filter_by(question_id=sq_id).delete(synchronize_session=False)
     db.delete(sq)
     db.commit()
-    return None
 
 
 @router.patch("/{survey_id}/questions/{sq_id}", response_model=SurveyQuestionResponse)
@@ -212,16 +218,27 @@ def remove_recipient(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("survey.edit")),
 ):
+    survey = db.get(Survey, survey_id)
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    _check_survey_scope(survey, current_user, db)
+
     recipient = db.get(SurveyRecipient, recipient_id)
     if not recipient or recipient.survey_id != survey_id:
         raise HTTPException(status_code=404, detail="Recipient not found")
 
-    survey = db.get(Survey, survey_id)
-    _check_survey_scope(survey, current_user, db)
+    # Cascade delete: responses -> answers -> access -> recipient
+    survey_accesses = db.query(SurveyAccess).filter_by(recipient_id=recipient_id).all()
+    for access in survey_accesses:
+        responses = db.query(SurveyResponseModel).filter_by(survey_access_id=access.id).all()
+        for response in responses:
+            db.query(SurveyAnswer).filter_by(response_id=response.id).delete(synchronize_session=False)
+        db.query(SurveyResponseModel).filter_by(survey_access_id=access.id).delete(synchronize_session=False)
 
+    db.query(SurveyAccess).filter_by(recipient_id=recipient_id).delete(synchronize_session=False)
     db.delete(recipient)
     db.commit()
-    return None
 
 
 @router.post("/{survey_id}/generate-links", response_model=List[AccessLinkResponse])
@@ -249,6 +266,61 @@ def generate_access_links(
             ))
     db.commit()
     return db.query(SurveyAccess).filter_by(survey_id=survey_id).all()
+
+
+@router.post("/{survey_id}/send-emails", response_model=SendEmailResponse)
+def send_survey_emails_endpoint(
+    survey_id: int,
+    request: SendEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("survey.send")),
+):
+    """Send survey access links to recipients via email."""
+    from ..services.email_service import send_survey_emails
+
+    survey = db.get(Survey, survey_id)
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    _check_survey_scope(survey, current_user, db)
+
+    # Get access links for the survey (excluding COMPLETED)
+    query = db.query(SurveyAccess).filter_by(survey_id=survey_id)
+    if request.recipient_ids:
+        query = query.filter(SurveyAccess.recipient_id.in_(request.recipient_ids))
+    query = query.filter(SurveyAccess.status != "COMPLETED")
+    access_links = query.all()
+
+    if not access_links:
+        raise HTTPException(status_code=400, detail="No access links found to send")
+
+    # Build email data with recipient info
+    email_data = []
+    for access in access_links:
+        recipient = db.get(SurveyRecipient, access.recipient_id)
+        if recipient:
+            email_data.append({
+                "recipient_name": recipient.recipient_name,
+                "recipient_email": recipient.recipient_email,
+                "access_token": access.access_token,
+            })
+
+    # Send emails via Azure Communication Services
+    result = send_survey_emails(
+        access_links=email_data,
+        survey_name=survey.survey_type,
+        survey_type=survey.survey_type,
+    )
+
+    # Update status to SENT if any succeeded
+    if result["success_count"] > 0:
+        for access in access_links:
+            access.status = "SENT"
+        survey.survey_status = "SENT"
+        db.commit()
+        db.refresh(survey)
+
+    return result
 
 
 @router.get("/{survey_id}/preview", response_model=SurveyTakeResponse)

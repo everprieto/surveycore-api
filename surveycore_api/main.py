@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 
-from .routers import auth, questions, projects, surveys, public, results, admin
+from .routers import auth, questions, projects, surveys, public, results, admin, emails
 from .database import engine
 from .models import Base
 
@@ -45,6 +45,7 @@ app.include_router(surveys.router)
 app.include_router(public.router)
 app.include_router(results.router)
 app.include_router(admin.router)
+app.include_router(emails.router)
 
 
 @app.get("/")
