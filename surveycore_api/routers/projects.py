@@ -114,16 +114,7 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("project.edit")),
 ):
-    project = Project(
-        project_code=project_data.project_code,
-        project_name=project_data.project_name,
-        client_name=project_data.client_name,
-        cost_center=project_data.cost_center,
-        manager_id=current_user.id,
-        start_date=project_data.start_date,
-        end_date=project_data.end_date,
-        status=project_data.status,
-    )
+    project = Project(**project_data.model_dump(), manager_id=current_user.id)
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -141,13 +132,8 @@ def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    if project_data.project_code:  project.project_code = project_data.project_code
-    if project_data.project_name:  project.project_name = project_data.project_name
-    if project_data.client_name:   project.client_name  = project_data.client_name
-    if project_data.cost_center:   project.cost_center  = project_data.cost_center
-    if project_data.start_date:    project.start_date   = project_data.start_date
-    if project_data.end_date:      project.end_date     = project_data.end_date
-    if project_data.status:        project.status       = project_data.status
+    for field, value in project_data.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
 
     db.commit()
     db.refresh(project)

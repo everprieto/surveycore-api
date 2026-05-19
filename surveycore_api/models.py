@@ -97,6 +97,13 @@ class Project(Base):
     client_name = Column(String, index=True)
     cost_center = Column(String)
 
+    client_manager_email = Column(String, nullable=True)
+    delivery_manager_email = Column(String, nullable=True)
+    client_exec_mgr_act_email = Column(String, nullable=True)
+    delivery_exec_mgr_act_email = Column(String, nullable=True)
+    project_head_email = Column(String, nullable=True)
+    legal_entity_name = Column(String, nullable=True)
+
     manager_id = Column(Integer, ForeignKey("users.id"), index=True)
 
     start_date = Column(DateTime)
@@ -288,4 +295,31 @@ class RolePermission(Base):
 
     __table_args__ = (
         UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),
+    )
+
+
+# -------------------------
+# LegalEntity
+# -------------------------
+
+class LegalEntity(Base):
+    __tablename__ = "legal_entities"
+
+    id   = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+
+
+# -------------------------
+# UserLegalEntity
+# -------------------------
+
+class UserLegalEntity(Base):
+    __tablename__ = "user_legal_entities"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_id         = Column(Integer, ForeignKey("users.id"), nullable=False)
+    legal_entity_id = Column(Integer, ForeignKey("legal_entities.id"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "legal_entity_id", name="uq_user_legal_entity"),
     )
