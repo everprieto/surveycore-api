@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from ..dependencies import get_db
-from ..models import User, Project
+from ..models import User, Project, UserLegalEntity
 from ..schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     ProjectListResponse, ProjectPageResponse,
@@ -23,14 +23,36 @@ _SORT_COLS = {
 }
 
 
+def _get_user_legal_entity_ids(user: User, db: Session) -> List[int]:
+    """Get legal entity IDs for non-admin users based on UserLegalEntity associations."""
+    if user.role == "ADMIN":
+        return []  # Empty list signals "no filter"
+
+    return [
+        r.legal_entity_id for r in (
+            db.query(UserLegalEntity.legal_entity_id)
+            .filter(UserLegalEntity.user_id == user.id)
+            .distinct()
+            .all()
+        )
+    ]
+
+
 def _base_query(current_user: User, db: Session):
-    """Return a scoped base query — all for ADMIN, assigned only for others."""
+    """Return a scoped base query with RBAC filtering.
+
+    - ADMIN: all projects
+    - Non-ADMIN: projects where legal_entity_id is in user's UserLegalEntity associations
+    """
     q = db.query(Project)
+
     if current_user.role != "ADMIN":
-        allowed_ids = get_user_project_ids(current_user, db)
-        if not allowed_ids:
-            return None
-        q = q.filter(Project.id.in_(allowed_ids))
+        le_ids = _get_user_legal_entity_ids(current_user, db)
+        if not le_ids:
+            return None  # User has no legal entities → empty result
+
+        q = q.filter(Project.legal_entity_id.in_(le_ids))
+
     return q
 
 

@@ -8,7 +8,8 @@ from typing import List, Optional
 from ..dependencies import get_db
 from ..models import (
     User, Survey, Project, SurveyQuestion, MasterQuestion,
-    SurveyAccess, SurveyResponse, SurveyAnswer, SurveyRecipient
+    SurveyAccess, SurveyResponse, SurveyAnswer, SurveyRecipient,
+    UserLegalEntity
 )
 from ..schemas.response import (
     SurveyResults, QuestionResult, AnswerResult,
@@ -182,15 +183,24 @@ def get_control_tower(
         .outerjoin(last_sq, last_sq.c.survey_id == Survey.id)
     )
 
-    # ── Scope filter ───────────────────────────────────────────────────────────
+    # ── Scope filter by legal entity ──────────────────────────────────────────────
     if current_user.role != "ADMIN":
-        allowed_ids = get_user_project_ids(current_user, db)
-        if not allowed_ids:
+        # Get legal entity IDs for non-admin users
+        le_ids = [
+            r.legal_entity_id for r in (
+                db.query(UserLegalEntity.legal_entity_id)
+                .filter(UserLegalEntity.user_id == current_user.id)
+                .distinct()
+                .all()
+            )
+        ]
+        if not le_ids:
             empty = ControlTowerTotals(total_surveys=0, total_projects=0,
                                        total_sent=0, total_completed=0)
             return ControlTowerPage(items=[], total=0, page=page,
                                     page_size=page_size, pages=0, totals=empty)
-        q = q.filter(Survey.project_id.in_(allowed_ids))
+        # Filter projects by legal entity FK
+        q = q.filter(Project.legal_entity_id.in_(le_ids))
 
     # ── Global totals (scoped, before search/pagination) ──────────────────────
     totals_r = q.with_entities(

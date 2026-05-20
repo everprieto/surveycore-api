@@ -99,10 +99,8 @@ class Project(Base):
 
     client_manager_email = Column(String, nullable=True)
     delivery_manager_email = Column(String, nullable=True)
-    client_exec_mgr_act_email = Column(String, nullable=True)
-    delivery_exec_mgr_act_email = Column(String, nullable=True)
     project_head_email = Column(String, nullable=True)
-    legal_entity_name = Column(String, nullable=True)
+    legal_entity_id = Column(Integer, ForeignKey("legal_entities.id"), nullable=True, index=True)
 
     manager_id = Column(Integer, ForeignKey("users.id"), index=True)
 
@@ -112,6 +110,7 @@ class Project(Base):
     status = Column(String, index=True)
 
     surveys = relationship("Survey", backref="project")
+    legal_entity = relationship("LegalEntity", foreign_keys=[legal_entity_id])
 
 
 # -------------------------
