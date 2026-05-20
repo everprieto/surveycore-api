@@ -8,6 +8,7 @@ Uso en routers:
 from typing import List, Callable
 
 from fastapi import Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from typing import Optional
@@ -34,20 +35,35 @@ def get_user_permissions(user: User, db: Session) -> List[str]:
 
 def get_user_project_ids(user: User, db: Session) -> List[int]:
     """
-    Devuelve IDs de proyectos accesibles al usuario via tabla assignments.
+    Devuelve IDs de proyectos accesibles al usuario via:
+    1. Tabla assignments (project.project_code = assignment.project_code where user.email)
+    2. Email manager fields (client_manager_email, delivery_manager_email, project_head_email)
     ADMIN devuelve lista vacía — los callers deben saltar el filtro para ADMIN.
     """
     if user.role == "ADMIN":
         return []
 
-    rows = (
+    assignment_rows = (
         db.query(Project.id)
         .join(Assignment, Assignment.project_code == Project.project_code)
         .filter(Assignment.user_email == user.email)
         .distinct()
         .all()
     )
-    return [r.id for r in rows]
+
+    email_rows = (
+        db.query(Project.id)
+        .filter(
+            or_(
+                Project.client_manager_email == user.email,
+                Project.delivery_manager_email == user.email,
+                Project.project_head_email == user.email,
+            )
+        )
+        .all()
+    )
+
+    return list({r.id for r in assignment_rows} | {r.id for r in email_rows})
 
 
 def get_user_assigned_projects(user: User, db: Session) -> List[str]:

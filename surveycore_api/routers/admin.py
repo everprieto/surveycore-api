@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..dependencies import get_db
-from ..models import User, Assignment, Permission, Role, RolePermission, Project
+from ..models import User, Assignment, Permission, Role, RolePermission, Project, LegalEntity, UserLegalEntity
 from ..schemas.admin import (
     AdminUserOut, AssignmentOut, SetRoleIn, AddAssignmentIn,
     PermissionOut, RoleDetailOut, CreateRoleIn, UpdateRoleIn, SetRolePermissionsIn,
     AssignmentDetailOut, CreateAssignmentIn, UpdateAssignmentIn,
+    LegalEntityIn, LegalEntityOut, UserLegalEntityIn, UserLegalEntityOut,
 )
 from ..schemas.auth import ImpersonateResponse, UserResponse
 from ..auth.permissions import require_permission, build_user_response
@@ -440,3 +441,105 @@ def set_role_permissions(
     db.commit()
 
     return _role_detail(role, db)
+
+
+# ── LegalEntity ───────────────────────────────────────────────────────────────
+
+@router.get("/legal-entities", response_model=List[LegalEntityOut])
+def list_legal_entities(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    return db.query(LegalEntity).order_by(LegalEntity.name).all()
+
+
+@router.post("/legal-entities", response_model=LegalEntityOut, status_code=201)
+def create_legal_entity(
+    data: LegalEntityIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    if db.query(LegalEntity).filter(LegalEntity.name == data.name).first():
+        raise HTTPException(status_code=400, detail="Ya existe una legal entity con ese nombre")
+    le = LegalEntity(name=data.name)
+    db.add(le)
+    db.commit()
+    db.refresh(le)
+    return le
+
+
+@router.delete("/legal-entities/{le_id}", status_code=204)
+def delete_legal_entity(
+    le_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    le = db.get(LegalEntity, le_id)
+    if not le:
+        raise HTTPException(status_code=404, detail="Legal entity no encontrada")
+    count = db.query(UserLegalEntity).filter(UserLegalEntity.legal_entity_id == le_id).count()
+    if count > 0:
+        raise HTTPException(status_code=400, detail=f"No se puede eliminar: {count} usuario(s) asignado(s)")
+    db.delete(le)
+    db.commit()
+    return None
+
+
+# ── UserLegalEntity ───────────────────────────────────────────────────────────
+
+@router.get("/user-legal-entities", response_model=List[UserLegalEntityOut])
+def list_user_legal_entities(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    rows = db.query(UserLegalEntity).all()
+    result = []
+    for r in rows:
+        u = db.get(User, r.user_id)
+        le = db.get(LegalEntity, r.legal_entity_id)
+        result.append(UserLegalEntityOut(
+            id=r.id, user_id=r.user_id,
+            user_name=u.name if u else "", user_email=u.email if u else "",
+            legal_entity_id=r.legal_entity_id,
+            legal_entity_name=le.name if le else "",
+        ))
+    return result
+
+
+@router.post("/user-legal-entities", response_model=UserLegalEntityOut, status_code=201)
+def create_user_legal_entity(
+    data: UserLegalEntityIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    u = db.get(User, data.user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    le = db.get(LegalEntity, data.legal_entity_id)
+    if not le:
+        raise HTTPException(status_code=404, detail="Legal entity no encontrada")
+    if db.query(UserLegalEntity).filter_by(user_id=data.user_id, legal_entity_id=data.legal_entity_id).first():
+        raise HTTPException(status_code=400, detail="La relación ya existe")
+    ule = UserLegalEntity(user_id=data.user_id, legal_entity_id=data.legal_entity_id)
+    db.add(ule)
+    db.commit()
+    db.refresh(ule)
+    return UserLegalEntityOut(
+        id=ule.id, user_id=ule.user_id,
+        user_name=u.name, user_email=u.email,
+        legal_entity_id=ule.legal_entity_id, legal_entity_name=le.name,
+    )
+
+
+@router.delete("/user-legal-entities/{ule_id}", status_code=204)
+def delete_user_legal_entity(
+    ule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    ule = db.get(UserLegalEntity, ule_id)
+    if not ule:
+        raise HTTPException(status_code=404, detail="Relación no encontrada")
+    db.delete(ule)
+    db.commit()
+    return None

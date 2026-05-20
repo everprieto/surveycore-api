@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from ..dependencies import get_db
-from ..models import User, Project
+from ..models import User, Project, UserLegalEntity
 from ..schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     ProjectListResponse, ProjectPageResponse,
@@ -23,14 +23,44 @@ _SORT_COLS = {
 }
 
 
+def _get_user_legal_entity_ids(user: User, db: Session) -> List[int]:
+    """Get legal entity IDs for non-admin users based on UserLegalEntity associations."""
+    if user.role == "ADMIN":
+        return []  # Empty list signals "no filter"
+
+    return [
+        r.legal_entity_id for r in (
+            db.query(UserLegalEntity.legal_entity_id)
+            .filter(UserLegalEntity.user_id == user.id)
+            .distinct()
+            .all()
+        )
+    ]
+
+
 def _base_query(current_user: User, db: Session):
-    """Return a scoped base query — all for ADMIN, assigned only for others."""
+    """Return a scoped base query with RBAC filtering.
+
+    - ADMIN: all projects
+    - Non-ADMIN: projects where:
+      1. legal_entity_id is in user's UserLegalEntity associations, OR
+      2. user email matches client_manager_email, delivery_manager_email, or project_head_email
+    """
     q = db.query(Project)
+
     if current_user.role != "ADMIN":
-        allowed_ids = get_user_project_ids(current_user, db)
-        if not allowed_ids:
-            return None
-        q = q.filter(Project.id.in_(allowed_ids))
+        le_ids = _get_user_legal_entity_ids(current_user, db)
+        email_filter = or_(
+            Project.client_manager_email == current_user.email,
+            Project.delivery_manager_email == current_user.email,
+            Project.project_head_email == current_user.email,
+        )
+
+        if le_ids:
+            q = q.filter(or_(Project.legal_entity_id.in_(le_ids), email_filter))
+        else:
+            q = q.filter(email_filter)
+
     return q
 
 
@@ -47,8 +77,6 @@ def list_projects(
 ):
     """Paginated project list with optional search, status filter and sort."""
     q = _base_query(current_user, db)
-    if q is None:
-        return ProjectPageResponse(items=[], total=0, page=page, page_size=page_size, pages=0)
 
     if search.strip():
         term = f"%{search.strip()}%"
@@ -68,11 +96,39 @@ def list_projects(
 
     total = q.count()
     pages = math.ceil(total / page_size) if total else 0
-    items = q.offset((page - 1) * page_size).limit(page_size).all()
+    projects = q.offset((page - 1) * page_size).limit(page_size).all()
 
-    return ProjectPageResponse(
-        items=items, total=total, page=page, page_size=page_size, pages=pages
-    )
+    # Create a dict of legal_entity_id -> legal_entity_name for quick lookup
+    legal_entities = {}
+    from ..models import LegalEntity
+    for le in db.query(LegalEntity).all():
+        legal_entities[le.id] = le.name
+
+    # Build response items
+    items = []
+    for p in projects:
+        item = {
+            'id': p.id,
+            'project_code': p.project_code,
+            'project_name': p.project_name,
+            'client_name': p.client_name,
+            'cost_center': p.cost_center,
+            'client_manager_email': p.client_manager_email,
+            'delivery_manager_email': p.delivery_manager_email,
+            'project_head_email': p.project_head_email,
+            'legal_entity_id': p.legal_entity_id,
+            'legal_entity_name': legal_entities.get(p.legal_entity_id),
+            'status': p.status,
+        }
+        items.append(item)
+
+    return {
+        'items': items,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'pages': pages,
+    }
 
 
 @router.get("/all", response_model=ProjectPageResponse)
@@ -105,7 +161,17 @@ def get_project(
         if project.id not in allowed_ids:
             raise HTTPException(status_code=403, detail="Access to this project is not permitted.")
 
-    return project
+    # Get legal_entity_name from related LegalEntity
+    legal_entity_name = None
+    if project.legal_entity_id:
+        from ..models import LegalEntity
+        le = db.get(LegalEntity, project.legal_entity_id)
+        legal_entity_name = le.name if le else None
+
+    # Convert to response schema with legal_entity_name
+    response_dict = ProjectResponse.model_validate(project).model_dump()
+    response_dict['legal_entity_name'] = legal_entity_name
+    return ProjectResponse.model_validate(response_dict)
 
 
 @router.post("/", response_model=ProjectResponse, status_code=201)
@@ -114,20 +180,21 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("project.edit")),
 ):
-    project = Project(
-        project_code=project_data.project_code,
-        project_name=project_data.project_name,
-        client_name=project_data.client_name,
-        cost_center=project_data.cost_center,
-        manager_id=current_user.id,
-        start_date=project_data.start_date,
-        end_date=project_data.end_date,
-        status=project_data.status,
-    )
+    project = Project(**project_data.model_dump(), manager_id=current_user.id)
     db.add(project)
     db.commit()
     db.refresh(project)
-    return project
+
+    # Get legal_entity_name from related LegalEntity
+    legal_entity_name = None
+    if project.legal_entity_id:
+        from ..models import LegalEntity
+        le = db.get(LegalEntity, project.legal_entity_id)
+        legal_entity_name = le.name if le else None
+
+    response_dict = ProjectResponse.model_validate(project).model_dump()
+    response_dict['legal_entity_name'] = legal_entity_name
+    return ProjectResponse.model_validate(response_dict)
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
@@ -141,14 +208,19 @@ def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    if project_data.project_code:  project.project_code = project_data.project_code
-    if project_data.project_name:  project.project_name = project_data.project_name
-    if project_data.client_name:   project.client_name  = project_data.client_name
-    if project_data.cost_center:   project.cost_center  = project_data.cost_center
-    if project_data.start_date:    project.start_date   = project_data.start_date
-    if project_data.end_date:      project.end_date     = project_data.end_date
-    if project_data.status:        project.status       = project_data.status
+    for field, value in project_data.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
 
     db.commit()
     db.refresh(project)
-    return project
+
+    # Get legal_entity_name from related LegalEntity
+    legal_entity_name = None
+    if project.legal_entity_id:
+        from ..models import LegalEntity
+        le = db.get(LegalEntity, project.legal_entity_id)
+        legal_entity_name = le.name if le else None
+
+    response_dict = ProjectResponse.model_validate(project).model_dump()
+    response_dict['legal_entity_name'] = legal_entity_name
+    return ProjectResponse.model_validate(response_dict)

@@ -112,3 +112,36 @@ class CreateAssignmentIn(BaseModel):
 class UpdateAssignmentIn(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+
+
+# ── LegalEntity ───────────────────────────────────────────────────────────────
+
+class LegalEntityIn(BaseModel):
+    name: str
+
+
+class LegalEntityOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+# ── UserLegalEntity ───────────────────────────────────────────────────────────
+
+class UserLegalEntityIn(BaseModel):
+    user_id: int
+    legal_entity_id: int
+
+
+class UserLegalEntityOut(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    user_email: str
+    legal_entity_id: int
+    legal_entity_name: str
+
+    class Config:
+        from_attributes = True
