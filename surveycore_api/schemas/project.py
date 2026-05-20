@@ -45,6 +45,7 @@ class ProjectResponse(BaseModel):
     delivery_manager_email: Optional[str]
     project_head_email: Optional[str]
     legal_entity_id: Optional[int]
+    legal_entity_name: Optional[str] = None
     manager_id: int
     start_date: datetime
     end_date: Optional[datetime]
@@ -65,6 +66,7 @@ class ProjectListResponse(BaseModel):
     delivery_manager_email: Optional[str]
     project_head_email: Optional[str]
     legal_entity_id: Optional[int]
+    legal_entity_name: Optional[str] = None
     status: str
 
     class Config:
