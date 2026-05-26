@@ -98,14 +98,18 @@ surveycore-api/               ← raíz del repo git
 ### Surveys — `/surveys`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/surveys/` | JWT | Crear encuesta |
+| GET | `/surveys/types` | Public | Obtener tipos de encuesta disponibles |
+| POST | `/surveys/` | JWT | Crear encuesta (requiere `survey_type_id`) |
 | GET | `/surveys/{id}` | JWT | Configuración completa |
-| PUT | `/surveys/{id}` | JWT | Actualizar |
+| PUT | `/surveys/{id}` | JWT | Actualizar (incluye `survey_type_id`) |
 | POST | `/surveys/{id}/questions` | JWT | Añadir pregunta |
 | DELETE | `/surveys/{id}/questions/{sq_id}` | JWT | Quitar pregunta |
+| PATCH | `/surveys/{id}/questions/{sq_id}` | JWT | Actualizar pregunta |
 | POST | `/surveys/{id}/recipients` | JWT | Añadir destinatario |
 | DELETE | `/surveys/{id}/recipients/{id}` | JWT | Quitar destinatario |
 | POST | `/surveys/{id}/generate-links` | JWT | Generar tokens de acceso |
+| POST | `/surveys/{id}/send-emails` | JWT | Enviar emails con links |
+| GET | `/surveys/{id}/preview` | JWT | Vista previa de encuesta |
 
 ### Public — `/public` (sin autenticación)
 | Método | Ruta | Auth | Descripción |
@@ -124,19 +128,26 @@ surveycore-api/               ← raíz del repo git
 ## Modelos ORM (models.py)
 
 ```
-User               — id, name, email, hashed_password, role
-MasterQuestion     — id, logical_code, answer_type, status (DRAFT/PUBLISHED)
-QuestionTranslation— id, question_id, language_code, question_text, is_default_language
-QuestionOption     — id, question_id, option_text, display_order
-OptionTranslation  — id, option_id, language_code, translated_text
-Project            — id, project_code, project_name, manager_id
-Survey             — id, project_id, survey_type, language_code, survey_status, created_by
-SurveyQuestion     — id, survey_id, question_id, display_order
-SurveyRecipient    — id, survey_id, name, email, company, role
-SurveyAccess       — id, recipient_id, token, status (PENDING/OPENED/COMPLETED)
-SurveyResponse     — id, access_id, submitted_at
-SurveyAnswer       — id, response_id, question_id, comment
-AuditLog           — definido, no usado
+User               — id, name, email, hashed_password, role_id
+Role               — id, name, description, is_system
+Permission         — id, code, description
+RolePermission     — id, role_id, permission_id (M:N)
+LegalEntity        — id, name
+UserLegalEntity    — id, user_id, legal_entity_id (M:N)
+MasterQuestion     — id, logical_code, answer_type, status (DRAFT/PUBLISHED), created_by, created_at
+QuestionTranslation— id, master_question_id, language_code, question_text, is_default_language
+QuestionOption     — id, master_question_id, option_text
+OptionTranslation  — id, option_id, language_code, option_text
+Project            — id, project_code, project_name, manager_id, legal_entity_id, status
+SurveyType         — id, survey_type (String, unique) ← NEW
+Survey             — id, project_id, survey_type_id (FK→SurveyType), language_code, survey_status, created_by
+SurveyQuestion     — id, survey_id, master_question_id, display_order, is_required
+SurveyRecipient    — id, survey_id, recipient_name, recipient_email, company, role
+SurveyAccess       — id, survey_id, recipient_id, access_token, status (PENDING/OPENED/COMPLETED)
+SurveyResponse     — id, survey_access_id, submitted_at
+SurveyAnswer       — id, response_id, question_id, score, comment
+Assignment         — id, project_code, user_email, start_date, end_date
+AuditLog           — definido, no usado actualmente
 ```
 
 ---

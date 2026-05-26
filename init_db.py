@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from surveycore_api.models import Base, User, MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation, Project, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess, SurveyResponse, SurveyAnswer
+from surveycore_api.models import Base, User, MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation, Project, SurveyType, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess, SurveyResponse, SurveyAnswer
 from surveycore_api.auth.password import get_password_hash
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -306,9 +306,20 @@ session.commit()
 
 print("Projects seeded.")
 
+# CREATE SURVEY TYPES
+survey_types_data = ["Quarterly", "Annual", "Post-Project", "Customer Satisfaction"]
+survey_types = []
+for st_name in survey_types_data:
+    st = SurveyType(survey_type=st_name)
+    session.add(st)
+    survey_types.append(st)
+session.commit()
+
+print("Survey types seeded.")
+
 survey1 = Survey(
     project_id=project1.id,
-    survey_type="Quarterly",
+    survey_type_id=survey_types[0].id,  # "Quarterly"
     language_code="EN",
     created_by=user2.id,
     survey_status="DRAFT"

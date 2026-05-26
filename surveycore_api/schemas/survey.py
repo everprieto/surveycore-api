@@ -4,17 +4,26 @@ from typing import Optional, List
 from datetime import datetime, date
 
 
+class SurveyTypeResponse(BaseModel):
+    """Survey type response."""
+    id: int
+    survey_type: str
+
+    class Config:
+        from_attributes = True
+
+
 class SurveyCreate(BaseModel):
     """Create new survey."""
     project_id: int
-    survey_type: str
+    survey_type_id: int
     language_code: str
     planned_send_date: date
 
 
 class SurveyUpdate(BaseModel):
     """Update survey."""
-    survey_type: Optional[str] = None
+    survey_type_id: Optional[int] = None
     language_code: Optional[str] = None
     planned_send_date: Optional[datetime] = None
     survey_status: Optional[str] = None
@@ -24,7 +33,8 @@ class SurveyResponse(BaseModel):
     """Survey response."""
     id: int
     project_id: int
-    survey_type: str
+    survey_type_id: int
+    survey_type: Optional[str] = None  # Populate from type_obj.survey_type
     language_code: str
     created_by: int
     created_at: datetime
@@ -33,6 +43,12 @@ class SurveyResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @staticmethod
+    def model_post_init(self, __context):
+        """Extract survey_type from type_obj relationship."""
+        if hasattr(self, 'type_obj') and self.type_obj:
+            self.survey_type = self.type_obj.survey_type
 
 
 class SurveyQuestionAdd(BaseModel):

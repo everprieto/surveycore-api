@@ -91,7 +91,7 @@ def get_survey_by_token(token: str, db: Session = Depends(get_db)):
 
     return SurveyTakeResponse(
         survey_id=survey.id,
-        survey_type=survey.survey_type,
+        survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
         language_code=survey.language_code,
         access_status=access.status,
         questions=enriched_questions

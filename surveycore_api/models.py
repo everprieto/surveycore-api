@@ -114,6 +114,19 @@ class Project(Base):
 
 
 # -------------------------
+# SurveyType
+# -------------------------
+
+class SurveyType(Base):
+    __tablename__ = "survey_types"
+
+    id = Column(Integer, primary_key=True)
+    survey_type = Column(String, unique=True, nullable=False, index=True)
+
+    surveys = relationship("Survey", back_populates="type_obj")
+
+
+# -------------------------
 # Survey
 # -------------------------
 
@@ -124,7 +137,7 @@ class Survey(Base):
 
     project_id = Column(Integer, ForeignKey("projects.id"), index=True)
 
-    survey_type = Column(String)
+    survey_type_id = Column(Integer, ForeignKey("survey_types.id"), index=True)
     language_code = Column(String, index=True)
 
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -137,6 +150,7 @@ class Survey(Base):
 
     questions = relationship("SurveyQuestion", backref="survey")
     recipients = relationship("SurveyRecipient", backref="survey")
+    type_obj = relationship("SurveyType", back_populates="surveys", lazy="joined")
 
 
 # -------------------------

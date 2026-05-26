@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from ..dependencies import get_db
 from ..models import (
-    User, Survey, Project, SurveyQuestion, MasterQuestion,
+    User, Survey, Project, SurveyType, SurveyQuestion, MasterQuestion,
     SurveyAccess, SurveyResponse, SurveyAnswer, SurveyRecipient,
     UserLegalEntity
 )
@@ -80,7 +80,7 @@ def get_survey_results(
 
     return SurveyResults(
         survey_id=survey.id,
-        survey_type=survey.survey_type,
+        survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
         language_code=survey.language_code,
         total_sent=total_sent,
         total_completed=total_completed,
@@ -117,7 +117,7 @@ def get_project_surveys_stats(
         )
         stats_list.append(CompletionStats(
             survey_id=survey.id,
-            survey_type=survey.survey_type,
+            survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
             language_code=survey.language_code,
             planned_send_date=str(survey.planned_send_date),
             survey_status=survey.survey_status,
@@ -165,7 +165,7 @@ def get_control_tower(
     q = (
         db.query(
             Survey.id.label("survey_id"),
-            Survey.survey_type,
+            SurveyType.survey_type,
             Survey.language_code,
             Survey.survey_status,
             Survey.planned_send_date,
@@ -177,6 +177,7 @@ def get_control_tower(
             last_sq.c.last_response,
         )
         .join(Project, Survey.project_id == Project.id)
+        .outerjoin(SurveyType, Survey.survey_type_id == SurveyType.id)
         .outerjoin(User, Project.manager_id == User.id)
         .outerjoin(sent_sq, sent_sq.c.survey_id == Survey.id)
         .outerjoin(done_sq, done_sq.c.survey_id == Survey.id)
@@ -222,7 +223,7 @@ def get_control_tower(
         q = q.filter(or_(
             Project.project_code.ilike(term),
             Project.project_name.ilike(term),
-            Survey.survey_type.ilike(term),
+            SurveyType.survey_type.ilike(term),
         ))
 
     # ── Filters ────────────────────────────────────────────────────────────────
@@ -235,7 +236,7 @@ def get_control_tower(
     _SORT = {
         "project_code":  Project.project_code,
         "project_name":  Project.project_name,
-        "survey_type":   Survey.survey_type,
+        "survey_type":   SurveyType.survey_type,
         "survey_status": Survey.survey_status,
         "sent_count":    sent_sq.c.sent_count,
         "done_count":    done_sq.c.done_count,

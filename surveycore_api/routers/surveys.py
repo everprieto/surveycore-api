@@ -6,12 +6,12 @@ from datetime import datetime
 
 from ..dependencies import get_db
 from ..models import (
-    User, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess,
+    User, Survey, SurveyType, SurveyQuestion, SurveyRecipient, SurveyAccess,
     MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation,
     SurveyAnswer, SurveyResponse as SurveyResponseModel,
 )
 from ..schemas.survey import (
-    SurveyCreate, SurveyUpdate, SurveyResponse,
+    SurveyCreate, SurveyUpdate, SurveyResponse, SurveyTypeResponse,
     SurveyQuestionAdd, SurveyQuestionUpdate, SurveyQuestionResponse,
     RecipientCreate, RecipientResponse,
     AccessLinkResponse, SurveyConfigResponse,
@@ -22,6 +22,12 @@ from ..auth.permissions import require_permission, get_user_project_ids
 from ..utils import generate_access_token
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
+
+
+@router.get("/types", response_model=list[SurveyTypeResponse])
+def get_survey_types(db: Session = Depends(get_db)):
+    """Get all available survey types."""
+    return db.query(SurveyType).order_by(SurveyType.survey_type).all()
 
 
 def _check_survey_scope(survey: Survey, current_user: User, db: Session) -> None:
@@ -46,7 +52,7 @@ def create_survey(
 
     survey = Survey(
         project_id=survey_data.project_id,
-        survey_type=survey_data.survey_type,
+        survey_type_id=survey_data.survey_type_id,
         language_code=survey_data.language_code,
         created_by=current_user.id,
         created_at=datetime.utcnow(),
@@ -94,8 +100,8 @@ def update_survey(
 
     _check_survey_scope(survey, current_user, db)
 
-    if survey_data.survey_type:
-        survey.survey_type = survey_data.survey_type
+    if survey_data.survey_type_id:
+        survey.survey_type_id = survey_data.survey_type_id
     if survey_data.language_code:
         survey.language_code = survey_data.language_code
     if survey_data.planned_send_date:
@@ -306,10 +312,11 @@ def send_survey_emails_endpoint(
             })
 
     # Send emails via Azure Communication Services
+    survey_type_name = survey.type_obj.survey_type if survey.type_obj else "Unknown"
     result = send_survey_emails(
         access_links=email_data,
-        survey_name=survey.survey_type,
-        survey_type=survey.survey_type,
+        survey_name=survey_type_name,
+        survey_type=survey_type_name,
     )
 
     # Update status to SENT if any succeeded
@@ -379,7 +386,7 @@ def preview_survey(
 
     return SurveyTakeResponse(
         survey_id=survey.id,
-        survey_type=survey.survey_type,
+        survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
         language_code=survey.language_code,
         access_status="PREVIEW",
         questions=enriched,
