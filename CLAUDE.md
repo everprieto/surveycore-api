@@ -1,7 +1,7 @@
 # SurveyCore API Agent — SurveyCore
 
 Agente especializado en la API de SurveyCore.  
-Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · SQLite/PostgreSQL**
+Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · PostgreSQL on Neon**
 
 ---
 
@@ -9,11 +9,13 @@ Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · SQLite/PostgreSQL**
 
 ```bash
 # Desde la raíz del repo (surveycore-api/)
-uvicorn surveycore_api.main:app --reload --port 8000
+# Asegurar que .venv está activado
+python -m uvicorn surveycore_api.main:app --reload --port 8000
 ```
 
 API disponible en `http://localhost:8000`  
-Docs: `/docs` (Swagger) · `/redoc` · `/openapi.json`
+Swagger: `http://localhost:8000/docs` · ReDoc: `/redoc` · OpenAPI Schema: `/openapi.json`  
+Health check: `GET /health`
 
 ---
 
@@ -23,35 +25,41 @@ Docs: `/docs` (Swagger) · `/redoc` · `/openapi.json`
 surveycore-api/               ← raíz del repo git
 ├── surveycore_api/           ← paquete Python
 │   ├── main.py               # Entrypoint: app FastAPI, CORS, registro de routers
-│   ├── models.py             # SQLAlchemy ORM — 11 modelos
+│   ├── models.py             # SQLAlchemy ORM — 15 modelos
 │   ├── database.py           # Engine + SessionLocal (lee DATABASE_URL de .env)
 │   ├── dependencies.py       # get_db() — inyección de sesión
-│   ├── utils.py              # generate_access_token()
+│   ├── utils.py              # Utilidades: token generation, helpers
 │   │
 │   ├── auth/
 │   │   ├── jwt_handler.py    # create_access_token / decode_access_token
-│   │   ├── deps.py           # get_current_user / get_optional_user
+│   │   ├── deps.py           # get_current_user / get_optional_user / get_admin_user
 │   │   ├── password.py       # get_password_hash / verify_password
-│   │   └── microsoft.py      # Validación tokens Microsoft Entra ID
+│   │   └── microsoft.py      # Validación tokens Microsoft Entra ID (JWKS)
 │   │
 │   ├── routers/
 │   │   ├── auth.py           # POST /auth/login, /register, /microsoft | GET /auth/me
 │   │   ├── questions.py      # CRUD /questions/ + traducciones + publicación
 │   │   ├── projects.py       # CRUD /projects/
-│   │   ├── surveys.py        # CRUD /surveys/ + preguntas + destinatarios + tokens
+│   │   ├── surveys.py        # CRUD /surveys/ + preguntas + destinatarios
 │   │   ├── public.py         # GET/POST /public/survey/{token} — sin auth
-│   │   └── results.py        # GET /results/survey/{id}
+│   │   ├── results.py        # GET /results/survey/{id} — analytics
+│   │   ├── admin.py          # Endpoints administrativos
+│   │   └── emails.py         # Envío de emails (Azure Communication Service)
 │   │
 │   └── schemas/
 │       ├── auth.py           # UserLogin, UserRegister, Token, UserResponse
 │       ├── question.py       # QuestionCreate/Update/Response, Translation*, Option*
 │       ├── survey.py         # SurveyCreate/Update/Response, RecipientCreate, AccessLink
 │       ├── project.py        # ProjectCreate/Update/Response
-│       └── response.py       # SurveyTakeResponse, AnswerSubmit, SurveySubmit
+│       └── response.py       # SurveyResponse, AnswerSubmit, SurveySubmit
 ├── init_db.py                # Seed script — run from repo root
-├── startup.sh                # Azure App Service startup
-├── requirements.txt
-├── .env.example
+├── setup.py                  # Package setup (version 2.0.0)
+├── requirements.txt          # pip dependencies
+├── Procfile                  # Azure App Service: gunicorn + uvicorn workers
+├── startup.sh                # Azure deployment script
+├── .env.example              # Local development
+├── .env.qa.example           # QA environment
+├── .env.production.example   # Production environment
 └── .gitignore
 ```
 
@@ -62,10 +70,10 @@ surveycore-api/               ← raíz del repo git
 ### Auth — `/auth`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/auth/register` | No | Crear usuario |
-| POST | `/auth/login` | No | Login → JWT |
-| POST | `/auth/microsoft` | No | SSO Entra ID → JWT |
-| GET | `/auth/me` | JWT | Usuario actual |
+| POST | `/auth/register` | No | Crear usuario con email/password |
+| POST | `/auth/login` | No | Login → JWT token |
+| POST | `/auth/microsoft` | No | SSO Microsoft Entra ID → JWT |
+| GET | `/auth/me` | JWT | Usuario actual (validar token) |
 
 ### Questions — `/questions`
 | Método | Ruta | Auth | Descripción |
@@ -102,8 +110,14 @@ surveycore-api/               ← raíz del repo git
 ### Public — `/public` (sin autenticación)
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| GET | `/public/survey/{token}` | No | Obtener encuesta por token |
-| POST | `/public/survey/{token}/submit` | No | Enviar respuestas |
+| GET | `/public/survey/{token}` | No | Obtener encuesta por token de acceso |
+| POST | `/public/survey/{token}/submit` | No | Enviar respuestas sin auth |
+
+### Email — `/email` (interno)
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/email/send-survey-link` | JWT | Enviar encuesta por correo |
+| POST | `/email/send-reminder` | JWT | Recordatorio de encuesta |
 
 ---
 

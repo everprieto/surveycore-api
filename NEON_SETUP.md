@@ -139,10 +139,6 @@ deploy_production:
         sed -i "s|DATABASE_URL=.*|DATABASE_URL=${{ secrets.NEON_DATABASE_URL_PRODUCTION }}|g" .env
 ```
 
-## Migration from SQLite to PostgreSQL
-
-If you have existing SQLite data and want to migrate:
-
 ### Manual Data Transfer (if needed)
 
 If you have existing data in another database:
