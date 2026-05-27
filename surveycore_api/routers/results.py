@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from ..dependencies import get_db
 from ..models import (
-    User, Survey, Project, SurveyQuestion, MasterQuestion,
+    User, Survey, Project, SurveyType, SurveyQuestion, MasterQuestion,
     SurveyAccess, SurveyResponse, SurveyAnswer, SurveyRecipient,
     UserLegalEntity
 )
@@ -80,12 +80,45 @@ def get_survey_results(
 
     return SurveyResults(
         survey_id=survey.id,
-        survey_type=survey.survey_type,
+        survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
         language_code=survey.language_code,
         total_sent=total_sent,
         total_completed=total_completed,
         questions=question_results,
     )
+
+
+@router.get("/user/surveys", response_model=List[CompletionStats])
+def get_user_surveys_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("survey.create")),
+):
+    """Get all surveys created by the current user."""
+    surveys = db.query(Survey).filter_by(created_by=current_user.id).all()
+    stats_list = []
+    for survey in surveys:
+        total_sent = db.query(SurveyAccess).filter_by(survey_id=survey.id).count()
+        total_completed = db.query(SurveyAccess).filter_by(survey_id=survey.id, status="COMPLETED").count()
+        last_response = (
+            db.query(SurveyResponse)
+            .join(SurveyAccess)
+            .filter(SurveyAccess.survey_id == survey.id)
+            .order_by(SurveyResponse.submitted_at.desc())
+            .first()
+        )
+        project = db.get(Project, survey.project_id) if survey.project_id else None
+        stats_list.append(CompletionStats(
+            survey_id=survey.id,
+            survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
+            language_code=survey.language_code,
+            planned_send_date=str(survey.planned_send_date) if survey.planned_send_date else None,
+            survey_status=survey.survey_status,
+            total_sent=total_sent,
+            total_completed=total_completed,
+            last_response_at=last_response.submitted_at if last_response else None,
+            project_name=project.project_name if project else None,
+        ))
+    return stats_list
 
 
 @router.get("/project/{project_id}/surveys", response_model=List[CompletionStats])
@@ -117,7 +150,7 @@ def get_project_surveys_stats(
         )
         stats_list.append(CompletionStats(
             survey_id=survey.id,
-            survey_type=survey.survey_type,
+            survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
             language_code=survey.language_code,
             planned_send_date=str(survey.planned_send_date),
             survey_status=survey.survey_status,
@@ -161,11 +194,11 @@ def get_control_tower(
         .group_by(SurveyAccess.survey_id).subquery()
     )
 
-    # ── Base query (single JOIN) ───────────────────────────────────────────────
+    # ── Base query (with optional project join) ─────────────────────────────────
     q = (
         db.query(
             Survey.id.label("survey_id"),
-            Survey.survey_type,
+            SurveyType.survey_type,
             Survey.language_code,
             Survey.survey_status,
             Survey.planned_send_date,
@@ -176,14 +209,15 @@ def get_control_tower(
             func.coalesce(done_sq.c.done_count, 0).label("done_count"),
             last_sq.c.last_response,
         )
-        .join(Project, Survey.project_id == Project.id)
+        .outerjoin(Project, Survey.project_id == Project.id)
+        .outerjoin(SurveyType, Survey.survey_type_id == SurveyType.id)
         .outerjoin(User, Project.manager_id == User.id)
         .outerjoin(sent_sq, sent_sq.c.survey_id == Survey.id)
         .outerjoin(done_sq, done_sq.c.survey_id == Survey.id)
         .outerjoin(last_sq, last_sq.c.survey_id == Survey.id)
     )
 
-    # ── Scope filter by legal entity ──────────────────────────────────────────────
+    # ── Scope filter: only surveys user can see ──────────────────────────────────
     if current_user.role != "ADMIN":
         # Get legal entity IDs for non-admin users
         le_ids = [
@@ -194,13 +228,15 @@ def get_control_tower(
                 .all()
             )
         ]
-        if not le_ids:
-            empty = ControlTowerTotals(total_surveys=0, total_projects=0,
-                                       total_sent=0, total_completed=0)
-            return ControlTowerPage(items=[], total=0, page=page,
-                                    page_size=page_size, pages=0, totals=empty)
-        # Filter projects by legal entity FK
-        q = q.filter(Project.legal_entity_id.in_(le_ids))
+        # Show surveys that:
+        # 1) User created (created_by = current_user.id) OR
+        # 2) Are in projects where user has legal entity access
+        q = q.filter(
+            or_(
+                Survey.created_by == current_user.id,
+                Project.legal_entity_id.in_(le_ids) if le_ids else False
+            )
+        )
 
     # ── Global totals (scoped, before search/pagination) ──────────────────────
     totals_r = q.with_entities(
@@ -222,7 +258,7 @@ def get_control_tower(
         q = q.filter(or_(
             Project.project_code.ilike(term),
             Project.project_name.ilike(term),
-            Survey.survey_type.ilike(term),
+            SurveyType.survey_type.ilike(term),
         ))
 
     # ── Filters ────────────────────────────────────────────────────────────────
@@ -235,13 +271,13 @@ def get_control_tower(
     _SORT = {
         "project_code":  Project.project_code,
         "project_name":  Project.project_name,
-        "survey_type":   Survey.survey_type,
+        "survey_type":   SurveyType.survey_type,
         "survey_status": Survey.survey_status,
         "sent_count":    sent_sq.c.sent_count,
         "done_count":    done_sq.c.done_count,
         "last_response": last_sq.c.last_response,
     }
-    col = _SORT.get(sort_by, Project.project_code)
+    col = _SORT.get(sort_by, Survey.id)
     q = q.order_by(col.desc() if sort_dir == "desc" else col.asc())
 
     # ── Pagination ─────────────────────────────────────────────────────────────

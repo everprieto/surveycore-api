@@ -1,6 +1,6 @@
 """Question library router."""
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from datetime import datetime
 
@@ -30,7 +30,11 @@ def get_question(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("project.view")),
 ):
-    question = db.get(MasterQuestion, question_id)
+    question = db.query(MasterQuestion).options(
+        joinedload(MasterQuestion.translations),
+        joinedload(MasterQuestion.options),
+        joinedload(MasterQuestion.survey_type)
+    ).filter_by(id=question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     return question
@@ -43,6 +47,7 @@ def create_question(
     current_user: User = Depends(require_permission("survey.edit")),
 ):
     question = MasterQuestion(
+        survey_type_id=question_data.survey_type_id,
         logical_code=question_data.logical_code,
         answer_type=question_data.answer_type,
         created_by=current_user.id,
@@ -65,7 +70,13 @@ def create_question(
             db.add(QuestionOption(master_question_id=question.id, option_text=opt.strip()))
 
     db.commit()
-    db.refresh(question)
+
+    # Reload question with all relationships
+    question = db.query(MasterQuestion).options(
+        joinedload(MasterQuestion.translations),
+        joinedload(MasterQuestion.options),
+        joinedload(MasterQuestion.survey_type)
+    ).filter_by(id=question.id).first()
     return question
 
 
@@ -76,12 +87,18 @@ def update_question(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("survey.edit")),
 ):
-    question = db.get(MasterQuestion, question_id)
+    question = db.query(MasterQuestion).options(
+        joinedload(MasterQuestion.translations),
+        joinedload(MasterQuestion.options),
+        joinedload(MasterQuestion.survey_type)
+    ).filter_by(id=question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     if question.status == "PUBLISHED":
         raise HTTPException(status_code=403, detail="Published questions cannot be edited")
 
+    if question_data.survey_type_id:
+        question.survey_type_id = question_data.survey_type_id
     if question_data.logical_code:
         question.logical_code = question_data.logical_code
     if question_data.answer_type:
@@ -98,7 +115,7 @@ def update_question(
             db.add(QuestionOption(master_question_id=question_id, option_text=opt.strip()))
 
     db.commit()
-    db.refresh(question)
+    db.refresh(question, ["translations", "options", "survey_type"])
     return question
 
 
@@ -108,13 +125,17 @@ def publish_question(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("survey.edit")),
 ):
-    question = db.get(MasterQuestion, question_id)
+    question = db.query(MasterQuestion).options(
+        joinedload(MasterQuestion.translations),
+        joinedload(MasterQuestion.options),
+        joinedload(MasterQuestion.survey_type)
+    ).filter_by(id=question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     question.status = "PUBLISHED"
     question.published_at = datetime.utcnow()
     db.commit()
-    db.refresh(question)
+    db.refresh(question, ["translations", "options", "survey_type"])
     return question
 
 

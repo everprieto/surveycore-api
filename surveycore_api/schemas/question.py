@@ -62,6 +62,7 @@ class QuestionTranslationResponse(BaseModel):
 
 class QuestionCreate(BaseModel):
     """Create new question."""
+    survey_type_id: int
     logical_code: str
     answer_type: str  # RATING, DROPDOWN, MULTI_SELECT, TEXT, YES_NO
     question_text: str  # Default translation (EN)
@@ -70,6 +71,7 @@ class QuestionCreate(BaseModel):
 
 class QuestionUpdate(BaseModel):
     """Update existing question (only DRAFT)."""
+    survey_type_id: Optional[int] = None
     logical_code: Optional[str] = None
     answer_type: Optional[str] = None
     question_text: Optional[str] = None
@@ -79,6 +81,7 @@ class QuestionUpdate(BaseModel):
 class QuestionResponse(BaseModel):
     """Question response with translations."""
     id: int
+    survey_type_id: int
     logical_code: str
     status: str
     answer_type: str
@@ -95,6 +98,7 @@ class QuestionResponse(BaseModel):
 class QuestionListResponse(BaseModel):
     """Simplified question list item."""
     id: int
+    survey_type_id: int
     logical_code: str
     status: str
     answer_type: str

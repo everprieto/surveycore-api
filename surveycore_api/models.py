@@ -27,6 +27,7 @@ class MasterQuestion(Base):
 
     id = Column(Integer, primary_key=True)
     logical_code = Column(String)
+    survey_type_id = Column(Integer, ForeignKey("survey_types.id"), nullable=False, index=True)
     status = Column(String)
     answer_type = Column(String)
     created_by = Column(Integer)
@@ -35,6 +36,7 @@ class MasterQuestion(Base):
 
     translations = relationship("QuestionTranslation", back_populates="question")
     options = relationship("QuestionOption", backref="question")
+    survey_type = relationship("SurveyType")
 
 
 class QuestionTranslation(Base):
@@ -114,6 +116,19 @@ class Project(Base):
 
 
 # -------------------------
+# SurveyType
+# -------------------------
+
+class SurveyType(Base):
+    __tablename__ = "survey_types"
+
+    id = Column(Integer, primary_key=True)
+    survey_type = Column(String, unique=True, nullable=False, index=True)
+
+    surveys = relationship("Survey", back_populates="type_obj")
+
+
+# -------------------------
 # Survey
 # -------------------------
 
@@ -122,9 +137,9 @@ class Survey(Base):
 
     id = Column(Integer, primary_key=True)
 
-    project_id = Column(Integer, ForeignKey("projects.id"), index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), index=True, nullable=True)
 
-    survey_type = Column(String)
+    survey_type_id = Column(Integer, ForeignKey("survey_types.id"), index=True)
     language_code = Column(String, index=True)
 
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -137,6 +152,7 @@ class Survey(Base):
 
     questions = relationship("SurveyQuestion", backref="survey")
     recipients = relationship("SurveyRecipient", backref="survey")
+    type_obj = relationship("SurveyType", back_populates="surveys", lazy="joined")
 
 
 # -------------------------

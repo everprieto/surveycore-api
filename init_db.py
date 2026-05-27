@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from surveycore_api.models import Base, User, MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation, Project, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess, SurveyResponse, SurveyAnswer
+from surveycore_api.models import Base, User, MasterQuestion, QuestionTranslation, QuestionOption, OptionTranslation, Project, SurveyType, Survey, SurveyQuestion, SurveyRecipient, SurveyAccess, SurveyResponse, SurveyAnswer
 from surveycore_api.auth.password import get_password_hash
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -215,13 +215,26 @@ questions_data = [
 ]
 
 
+# CREATE SURVEY TYPES first (before questions)
+survey_types_data = ["Quarterly", "Annual", "Post-Project", "Customer Satisfaction"]
+survey_types = []
+for st_name in survey_types_data:
+    st = SurveyType(survey_type=st_name)
+    session.add(st)
+    survey_types.append(st)
+session.commit()
+
+print("Survey types seeded.")
+
 # INSERT QUESTIONS
 
 for i, q in enumerate(questions_data):
 
     status = "PUBLISHED" if i < 10 else "DRAFT"
+    survey_type_idx = i % len(survey_types)  # Distribute questions across survey types
 
     question = MasterQuestion(
+        survey_type_id=survey_types[survey_type_idx].id,
         logical_code=q["logical_code"],
         status=status,
         answer_type=q["type"],
@@ -308,7 +321,7 @@ print("Projects seeded.")
 
 survey1 = Survey(
     project_id=project1.id,
-    survey_type="Quarterly",
+    survey_type_id=survey_types[0].id,  # "Quarterly"
     language_code="EN",
     created_by=user2.id,
     survey_status="DRAFT"

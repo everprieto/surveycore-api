@@ -1,7 +1,7 @@
 # SurveyCore API Agent — SurveyCore
 
 Agente especializado en la API de SurveyCore.  
-Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · SQLite/PostgreSQL**
+Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · PostgreSQL on Neon**
 
 ---
 
@@ -9,11 +9,13 @@ Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · SQLite/PostgreSQL**
 
 ```bash
 # Desde la raíz del repo (surveycore-api/)
-uvicorn surveycore_api.main:app --reload --port 8000
+# Asegurar que .venv está activado
+python -m uvicorn surveycore_api.main:app --reload --port 8000
 ```
 
 API disponible en `http://localhost:8000`  
-Docs: `/docs` (Swagger) · `/redoc` · `/openapi.json`
+Swagger: `http://localhost:8000/docs` · ReDoc: `/redoc` · OpenAPI Schema: `/openapi.json`  
+Health check: `GET /health`
 
 ---
 
@@ -23,35 +25,41 @@ Docs: `/docs` (Swagger) · `/redoc` · `/openapi.json`
 surveycore-api/               ← raíz del repo git
 ├── surveycore_api/           ← paquete Python
 │   ├── main.py               # Entrypoint: app FastAPI, CORS, registro de routers
-│   ├── models.py             # SQLAlchemy ORM — 11 modelos
+│   ├── models.py             # SQLAlchemy ORM — 15 modelos
 │   ├── database.py           # Engine + SessionLocal (lee DATABASE_URL de .env)
 │   ├── dependencies.py       # get_db() — inyección de sesión
-│   ├── utils.py              # generate_access_token()
+│   ├── utils.py              # Utilidades: token generation, helpers
 │   │
 │   ├── auth/
 │   │   ├── jwt_handler.py    # create_access_token / decode_access_token
-│   │   ├── deps.py           # get_current_user / get_optional_user
+│   │   ├── deps.py           # get_current_user / get_optional_user / get_admin_user
 │   │   ├── password.py       # get_password_hash / verify_password
-│   │   └── microsoft.py      # Validación tokens Microsoft Entra ID
+│   │   └── microsoft.py      # Validación tokens Microsoft Entra ID (JWKS)
 │   │
 │   ├── routers/
 │   │   ├── auth.py           # POST /auth/login, /register, /microsoft | GET /auth/me
 │   │   ├── questions.py      # CRUD /questions/ + traducciones + publicación
 │   │   ├── projects.py       # CRUD /projects/
-│   │   ├── surveys.py        # CRUD /surveys/ + preguntas + destinatarios + tokens
+│   │   ├── surveys.py        # CRUD /surveys/ + preguntas + destinatarios
 │   │   ├── public.py         # GET/POST /public/survey/{token} — sin auth
-│   │   └── results.py        # GET /results/survey/{id}
+│   │   ├── results.py        # GET /results/survey/{id} — analytics
+│   │   ├── admin.py          # Endpoints administrativos
+│   │   └── emails.py         # Envío de emails (Azure Communication Service)
 │   │
 │   └── schemas/
 │       ├── auth.py           # UserLogin, UserRegister, Token, UserResponse
 │       ├── question.py       # QuestionCreate/Update/Response, Translation*, Option*
 │       ├── survey.py         # SurveyCreate/Update/Response, RecipientCreate, AccessLink
 │       ├── project.py        # ProjectCreate/Update/Response
-│       └── response.py       # SurveyTakeResponse, AnswerSubmit, SurveySubmit
+│       └── response.py       # SurveyResponse, AnswerSubmit, SurveySubmit
 ├── init_db.py                # Seed script — run from repo root
-├── startup.sh                # Azure App Service startup
-├── requirements.txt
-├── .env.example
+├── setup.py                  # Package setup (version 2.0.0)
+├── requirements.txt          # pip dependencies
+├── Procfile                  # Azure App Service: gunicorn + uvicorn workers
+├── startup.sh                # Azure deployment script
+├── .env.example              # Local development
+├── .env.qa.example           # QA environment
+├── .env.production.example   # Production environment
 └── .gitignore
 ```
 
@@ -62,10 +70,10 @@ surveycore-api/               ← raíz del repo git
 ### Auth — `/auth`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/auth/register` | No | Crear usuario |
-| POST | `/auth/login` | No | Login → JWT |
-| POST | `/auth/microsoft` | No | SSO Entra ID → JWT |
-| GET | `/auth/me` | JWT | Usuario actual |
+| POST | `/auth/register` | No | Crear usuario con email/password |
+| POST | `/auth/login` | No | Login → JWT token |
+| POST | `/auth/microsoft` | No | SSO Microsoft Entra ID → JWT |
+| GET | `/auth/me` | JWT | Usuario actual (validar token) |
 
 ### Questions — `/questions`
 | Método | Ruta | Auth | Descripción |
@@ -90,39 +98,56 @@ surveycore-api/               ← raíz del repo git
 ### Surveys — `/surveys`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/surveys/` | JWT | Crear encuesta |
+| GET | `/surveys/types` | Public | Obtener tipos de encuesta disponibles |
+| POST | `/surveys/` | JWT | Crear encuesta (requiere `survey_type_id`) |
 | GET | `/surveys/{id}` | JWT | Configuración completa |
-| PUT | `/surveys/{id}` | JWT | Actualizar |
+| PUT | `/surveys/{id}` | JWT | Actualizar (incluye `survey_type_id`) |
 | POST | `/surveys/{id}/questions` | JWT | Añadir pregunta |
 | DELETE | `/surveys/{id}/questions/{sq_id}` | JWT | Quitar pregunta |
+| PATCH | `/surveys/{id}/questions/{sq_id}` | JWT | Actualizar pregunta |
 | POST | `/surveys/{id}/recipients` | JWT | Añadir destinatario |
 | DELETE | `/surveys/{id}/recipients/{id}` | JWT | Quitar destinatario |
 | POST | `/surveys/{id}/generate-links` | JWT | Generar tokens de acceso |
+| POST | `/surveys/{id}/send-emails` | JWT | Enviar emails con links |
+| GET | `/surveys/{id}/preview` | JWT | Vista previa de encuesta |
 
 ### Public — `/public` (sin autenticación)
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| GET | `/public/survey/{token}` | No | Obtener encuesta por token |
-| POST | `/public/survey/{token}/submit` | No | Enviar respuestas |
+| GET | `/public/survey/{token}` | No | Obtener encuesta por token de acceso |
+| POST | `/public/survey/{token}/submit` | No | Enviar respuestas sin auth |
+
+### Email — `/email` (interno)
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/email/send-survey-link` | JWT | Enviar encuesta por correo |
+| POST | `/email/send-reminder` | JWT | Recordatorio de encuesta |
 
 ---
 
 ## Modelos ORM (models.py)
 
 ```
-User               — id, name, email, hashed_password, role
-MasterQuestion     — id, logical_code, answer_type, status (DRAFT/PUBLISHED)
-QuestionTranslation— id, question_id, language_code, question_text, is_default_language
-QuestionOption     — id, question_id, option_text, display_order
-OptionTranslation  — id, option_id, language_code, translated_text
-Project            — id, project_code, project_name, manager_id
-Survey             — id, project_id, survey_type, language_code, survey_status, created_by
-SurveyQuestion     — id, survey_id, question_id, display_order
-SurveyRecipient    — id, survey_id, name, email, company, role
-SurveyAccess       — id, recipient_id, token, status (PENDING/OPENED/COMPLETED)
-SurveyResponse     — id, access_id, submitted_at
-SurveyAnswer       — id, response_id, question_id, comment
-AuditLog           — definido, no usado
+User               — id, name, email, hashed_password, role_id
+Role               — id, name, description, is_system
+Permission         — id, code, description
+RolePermission     — id, role_id, permission_id (M:N)
+LegalEntity        — id, name
+UserLegalEntity    — id, user_id, legal_entity_id (M:N)
+MasterQuestion     — id, logical_code, answer_type, status (DRAFT/PUBLISHED), created_by, created_at
+QuestionTranslation— id, master_question_id, language_code, question_text, is_default_language
+QuestionOption     — id, master_question_id, option_text
+OptionTranslation  — id, option_id, language_code, option_text
+Project            — id, project_code, project_name, manager_id, legal_entity_id, status
+SurveyType         — id, survey_type (String, unique) ← NEW
+Survey             — id, project_id, survey_type_id (FK→SurveyType), language_code, survey_status, created_by
+SurveyQuestion     — id, survey_id, master_question_id, display_order, is_required
+SurveyRecipient    — id, survey_id, recipient_name, recipient_email, company, role
+SurveyAccess       — id, survey_id, recipient_id, access_token, status (PENDING/OPENED/COMPLETED)
+SurveyResponse     — id, survey_access_id, submitted_at
+SurveyAnswer       — id, response_id, question_id, score, comment
+Assignment         — id, project_code, user_email, start_date, end_date
+AuditLog           — definido, no usado actualmente
 ```
 
 ---

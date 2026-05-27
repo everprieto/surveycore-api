@@ -2,7 +2,7 @@
 
 REST API for SurveyCore — multi-language survey management with role-based access control and Microsoft Entra ID SSO.
 
-**Deployed on:** [Render.com](https://surveycore-api.onrender.com)
+**Deployed on:** Azure App Service (dev/qa/production)
 
 ## Stack
 
@@ -142,26 +142,31 @@ Default credentials:
 
 ## Deployment
 
-### Local → QA (Render.com)
+### Branch Strategy & Environments
+
+| Branch | Environment | URL | Deployment |
+|---|---|---|---|
+| `dev` | Local | `http://localhost:8000` | Manual (local) |
+| `qa` | QA | `https://surveycore-api-qa.azurewebsites.net` | GitHub Actions → Azure App Service |
+| `main` | Production | `https://surveycore-api.azurewebsites.net` | GitHub Actions → Azure App Service |
+
+### CI/CD Pipeline
+
+1. **Push to branch** → GitHub Actions triggers
+2. **Build & Test** → Python 3.13 env, install requirements
+3. **Deploy to Azure App Service** → Using `Procfile` (Gunicorn + Uvicorn workers)
+4. **Database** → PostgreSQL on Neon (all environments)
+
+### Manual QA Deployment
 
 ```bash
 git checkout qa
 git merge dev
 git push origin qa
-# Render auto-deploys to https://surveycore-api.onrender.com
+# GitHub Actions auto-triggers build & deploy to Azure App Service
 ```
 
-See [RENDER_SETUP.md](./RENDER_SETUP.md) for complete Render deployment guide.
-
-### Branch Strategy
-
-| Branch | Environment | Deployment |
-|---|---|---|
-| `dev` | Local | `http://localhost:8000` |
-| `qa` | QA | `https://surveycore-api.onrender.com` |
-| `main` | Production | `https://surveycore-api.onrender.com` |
-
-All branches use PostgreSQL on Neon.
+All deployments configured in `.github/workflows/` — see GitHub Actions for logs.
 
 ---
 
@@ -174,4 +179,31 @@ All branches use PostgreSQL on Neon.
 | CORS errors from frontend | Verify frontend URL in `CORS_ORIGINS` environment variable |
 | Import errors in routers | Ensure `__init__.py` exists in all package directories |
 
-See [NEON_SETUP.md](./NEON_SETUP.md) and [CLAUDE.md](./CLAUDE.md) for more help.
+See [NEON_SETUP.md](./NEON_SETUP.md), [CLAUDE.md](./CLAUDE.md), and [SETUP_LOCAL.md](./SETUP_LOCAL.md) for more help.
+
+---
+
+## Technology Stack Details
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| FastAPI | 0.109 | Web framework |
+| Uvicorn | 0.27 | ASGI server |
+| SQLAlchemy | 2.0 | ORM |
+| Psycopg | 3.3 | PostgreSQL driver (Windows-compatible) |
+| PyJWT | 2.8 | JWT encoding/decoding |
+| Passlib | 1.7.4 | Password hashing |
+| Azure Communication Email | 1.1 | Email service integration |
+| Python-dotenv | 1.0 | Environment config |
+
+---
+
+## Local Development Checklist
+
+- [ ] Python 3.13+ installed
+- [ ] `.venv` activated
+- [ ] `requirements.txt` installed
+- [ ] `.env` configured with `DATABASE_URL`, `SECRET_KEY`, Azure credentials
+- [ ] `init_db.py` executed (first time)
+- [ ] `uvicorn` running on port 8000
+- [ ] Frontend at `http://localhost:5173` configured in `CORS_ORIGINS`
