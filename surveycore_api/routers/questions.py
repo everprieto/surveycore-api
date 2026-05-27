@@ -43,6 +43,7 @@ def create_question(
     current_user: User = Depends(require_permission("survey.edit")),
 ):
     question = MasterQuestion(
+        survey_type_id=question_data.survey_type_id,
         logical_code=question_data.logical_code,
         answer_type=question_data.answer_type,
         created_by=current_user.id,
@@ -82,6 +83,8 @@ def update_question(
     if question.status == "PUBLISHED":
         raise HTTPException(status_code=403, detail="Published questions cannot be edited")
 
+    if question_data.survey_type_id:
+        question.survey_type_id = question_data.survey_type_id
     if question_data.logical_code:
         question.logical_code = question_data.logical_code
     if question_data.answer_type:

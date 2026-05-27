@@ -215,13 +215,26 @@ questions_data = [
 ]
 
 
+# CREATE SURVEY TYPES first (before questions)
+survey_types_data = ["Quarterly", "Annual", "Post-Project", "Customer Satisfaction"]
+survey_types = []
+for st_name in survey_types_data:
+    st = SurveyType(survey_type=st_name)
+    session.add(st)
+    survey_types.append(st)
+session.commit()
+
+print("Survey types seeded.")
+
 # INSERT QUESTIONS
 
 for i, q in enumerate(questions_data):
 
     status = "PUBLISHED" if i < 10 else "DRAFT"
+    survey_type_idx = i % len(survey_types)  # Distribute questions across survey types
 
     question = MasterQuestion(
+        survey_type_id=survey_types[survey_type_idx].id,
         logical_code=q["logical_code"],
         status=status,
         answer_type=q["type"],
@@ -305,17 +318,6 @@ session.add_all([project1, project2])
 session.commit()
 
 print("Projects seeded.")
-
-# CREATE SURVEY TYPES
-survey_types_data = ["Quarterly", "Annual", "Post-Project", "Customer Satisfaction"]
-survey_types = []
-for st_name in survey_types_data:
-    st = SurveyType(survey_type=st_name)
-    session.add(st)
-    survey_types.append(st)
-session.commit()
-
-print("Survey types seeded.")
 
 survey1 = Survey(
     project_id=project1.id,

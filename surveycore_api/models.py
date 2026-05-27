@@ -27,6 +27,7 @@ class MasterQuestion(Base):
 
     id = Column(Integer, primary_key=True)
     logical_code = Column(String)
+    survey_type_id = Column(Integer, ForeignKey("survey_types.id"), nullable=False, index=True)
     status = Column(String)
     answer_type = Column(String)
     created_by = Column(Integer)
@@ -35,6 +36,7 @@ class MasterQuestion(Base):
 
     translations = relationship("QuestionTranslation", back_populates="question")
     options = relationship("QuestionOption", backref="question")
+    survey_type = relationship("SurveyType")
 
 
 class QuestionTranslation(Base):
