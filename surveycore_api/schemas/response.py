@@ -79,14 +79,14 @@ class CompletionStats(BaseModel):
 class ControlTowerRow(BaseModel):
     """Single row in control tower dashboard."""
     survey_id: int
-    project_code: str
-    project_name: str
-    manager_name: str
+    project_code: Optional[str] = None
+    project_name: Optional[str] = None
+    manager_name: Optional[str] = None
     survey_type: str
     language_code: str
     sent_count: int
     done_count: int
-    last_response: Optional[datetime]
+    last_response: Optional[datetime] = None
     survey_status: str
     planned_send_date: Optional[datetime] = None
 

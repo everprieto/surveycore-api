@@ -194,7 +194,7 @@ def get_control_tower(
         .group_by(SurveyAccess.survey_id).subquery()
     )
 
-    # ── Base query (single JOIN) ───────────────────────────────────────────────
+    # ── Base query (with optional project join) ─────────────────────────────────
     q = (
         db.query(
             Survey.id.label("survey_id"),
@@ -209,7 +209,7 @@ def get_control_tower(
             func.coalesce(done_sq.c.done_count, 0).label("done_count"),
             last_sq.c.last_response,
         )
-        .join(Project, Survey.project_id == Project.id)
+        .outerjoin(Project, Survey.project_id == Project.id)
         .outerjoin(SurveyType, Survey.survey_type_id == SurveyType.id)
         .outerjoin(User, Project.manager_id == User.id)
         .outerjoin(sent_sq, sent_sq.c.survey_id == Survey.id)
@@ -217,7 +217,7 @@ def get_control_tower(
         .outerjoin(last_sq, last_sq.c.survey_id == Survey.id)
     )
 
-    # ── Scope filter by legal entity ──────────────────────────────────────────────
+    # ── Scope filter: only surveys user can see ──────────────────────────────────
     if current_user.role != "ADMIN":
         # Get legal entity IDs for non-admin users
         le_ids = [
@@ -228,13 +228,15 @@ def get_control_tower(
                 .all()
             )
         ]
-        if not le_ids:
-            empty = ControlTowerTotals(total_surveys=0, total_projects=0,
-                                       total_sent=0, total_completed=0)
-            return ControlTowerPage(items=[], total=0, page=page,
-                                    page_size=page_size, pages=0, totals=empty)
-        # Filter projects by legal entity FK
-        q = q.filter(Project.legal_entity_id.in_(le_ids))
+        # Show surveys that:
+        # 1) User created (created_by = current_user.id) OR
+        # 2) Are in projects where user has legal entity access
+        q = q.filter(
+            or_(
+                Survey.created_by == current_user.id,
+                Project.legal_entity_id.in_(le_ids) if le_ids else False
+            )
+        )
 
     # ── Global totals (scoped, before search/pagination) ──────────────────────
     totals_r = q.with_entities(
@@ -275,7 +277,7 @@ def get_control_tower(
         "done_count":    done_sq.c.done_count,
         "last_response": last_sq.c.last_response,
     }
-    col = _SORT.get(sort_by, Project.project_code)
+    col = _SORT.get(sort_by, Survey.id)
     q = q.order_by(col.desc() if sort_dir == "desc" else col.asc())
 
     # ── Pagination ─────────────────────────────────────────────────────────────
