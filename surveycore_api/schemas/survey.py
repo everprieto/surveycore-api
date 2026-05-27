@@ -1,5 +1,5 @@
 """Survey schemas."""
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional, List
 from datetime import datetime, date
 
@@ -34,7 +34,7 @@ class SurveyResponse(BaseModel):
     id: int
     project_id: Optional[int] = None
     survey_type_id: int
-    survey_type: Optional[str] = None  # Populate from type_obj.survey_type
+    survey_type: Optional[str] = None
     language_code: str
     created_by: int
     created_at: datetime
@@ -43,11 +43,18 @@ class SurveyResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        extra = 'allow'  # Allow extra attributes like type_obj from SQLAlchemy
 
-    def model_post_init(self, __context):
-        """Extract survey_type from type_obj relationship."""
-        if hasattr(self, 'type_obj') and self.type_obj:
-            self.survey_type = self.type_obj.survey_type
+    @model_validator(mode='after')
+    def extract_survey_type(self):
+        """Extract survey_type from type_obj relationship if not already set."""
+        # Get any extra attributes that Pydantic captured
+        extra_data = getattr(self, '__pydantic_extra__', {})
+        if not self.survey_type and extra_data and 'type_obj' in extra_data:
+            type_obj = extra_data['type_obj']
+            if type_obj and hasattr(type_obj, 'survey_type'):
+                self.survey_type = type_obj.survey_type
+        return self
 
 
 class SurveyQuestionAdd(BaseModel):

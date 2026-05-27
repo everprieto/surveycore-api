@@ -88,6 +88,39 @@ def get_survey_results(
     )
 
 
+@router.get("/user/surveys", response_model=List[CompletionStats])
+def get_user_surveys_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("survey.create")),
+):
+    """Get all surveys created by the current user."""
+    surveys = db.query(Survey).filter_by(created_by=current_user.id).all()
+    stats_list = []
+    for survey in surveys:
+        total_sent = db.query(SurveyAccess).filter_by(survey_id=survey.id).count()
+        total_completed = db.query(SurveyAccess).filter_by(survey_id=survey.id, status="COMPLETED").count()
+        last_response = (
+            db.query(SurveyResponse)
+            .join(SurveyAccess)
+            .filter(SurveyAccess.survey_id == survey.id)
+            .order_by(SurveyResponse.submitted_at.desc())
+            .first()
+        )
+        project = db.get(Project, survey.project_id) if survey.project_id else None
+        stats_list.append(CompletionStats(
+            survey_id=survey.id,
+            survey_type=survey.type_obj.survey_type if survey.type_obj else "Unknown",
+            language_code=survey.language_code,
+            planned_send_date=str(survey.planned_send_date) if survey.planned_send_date else None,
+            survey_status=survey.survey_status,
+            total_sent=total_sent,
+            total_completed=total_completed,
+            last_response_at=last_response.submitted_at if last_response else None,
+            project_name=project.project_name if project else None,
+        ))
+    return stats_list
+
+
 @router.get("/project/{project_id}/surveys", response_model=List[CompletionStats])
 def get_project_surveys_stats(
     project_id: int,

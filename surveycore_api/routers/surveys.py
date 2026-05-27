@@ -1,6 +1,6 @@
 """Survey configuration router."""
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from datetime import datetime
 
@@ -61,7 +61,10 @@ def create_survey(
     )
     db.add(survey)
     db.commit()
-    db.refresh(survey)
+    db.refresh(survey, ["type_obj"])
+    # Manually set survey_type for response serialization
+    if survey.type_obj:
+        survey.survey_type = survey.type_obj.survey_type
     return survey
 
 
@@ -71,11 +74,15 @@ def get_survey_config(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("project.view")),
 ):
-    survey = db.get(Survey, survey_id)
+    survey = db.query(Survey).options(joinedload(Survey.type_obj)).filter_by(id=survey_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
     _check_survey_scope(survey, current_user, db)
+
+    # Manually set survey_type for response serialization
+    if survey.type_obj:
+        survey.survey_type = survey.type_obj.survey_type
 
     survey_questions = (
         db.query(SurveyQuestion).filter_by(survey_id=survey_id)
@@ -94,7 +101,7 @@ def update_survey(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("survey.edit")),
 ):
-    survey = db.get(Survey, survey_id)
+    survey = db.query(Survey).options(joinedload(Survey.type_obj)).filter_by(id=survey_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -110,7 +117,10 @@ def update_survey(
         survey.survey_status = survey_data.survey_status
 
     db.commit()
-    db.refresh(survey)
+    db.refresh(survey, ["type_obj"])
+    # Manually set survey_type for response serialization
+    if survey.type_obj:
+        survey.survey_type = survey.type_obj.survey_type
     return survey
 
 

@@ -68,11 +68,12 @@ class CompletionStats(BaseModel):
     survey_id: int
     survey_type: str
     language_code: str
-    planned_send_date: str
+    planned_send_date: Optional[str] = None
     survey_status: str
     total_sent: int
     total_completed: int
-    last_response_at: Optional[datetime]
+    last_response_at: Optional[datetime] = None
+    project_name: Optional[str] = None
 
 
 class ControlTowerRow(BaseModel):
