@@ -135,7 +135,7 @@ class Survey(Base):
 
     id = Column(Integer, primary_key=True)
 
-    project_id = Column(Integer, ForeignKey("projects.id"), index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), index=True, nullable=True)
 
     survey_type_id = Column(Integer, ForeignKey("survey_types.id"), index=True)
     language_code = Column(String, index=True)

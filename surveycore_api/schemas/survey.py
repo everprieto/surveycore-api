@@ -15,7 +15,7 @@ class SurveyTypeResponse(BaseModel):
 
 class SurveyCreate(BaseModel):
     """Create new survey."""
-    project_id: int
+    project_id: Optional[int] = None
     survey_type_id: int
     language_code: str
     planned_send_date: date
@@ -32,7 +32,7 @@ class SurveyUpdate(BaseModel):
 class SurveyResponse(BaseModel):
     """Survey response."""
     id: int
-    project_id: int
+    project_id: Optional[int] = None
     survey_type_id: int
     survey_type: Optional[str] = None  # Populate from type_obj.survey_type
     language_code: str
@@ -44,7 +44,6 @@ class SurveyResponse(BaseModel):
     class Config:
         from_attributes = True
 
-    @staticmethod
     def model_post_init(self, __context):
         """Extract survey_type from type_obj relationship."""
         if hasattr(self, 'type_obj') and self.type_obj:
