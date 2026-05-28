@@ -24,7 +24,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v2
         with:
           app-name: 'gft-surveycoreapi-qa'
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PROD }}
