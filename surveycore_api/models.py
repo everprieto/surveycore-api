@@ -119,6 +119,7 @@ class Project(Base):
 # SurveyType
 # -------------------------
 
+
 class SurveyType(Base):
     __tablename__ = "survey_types"
 
