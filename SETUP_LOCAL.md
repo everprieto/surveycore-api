@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.13 (check with `python --version`)
+- Python 3.14.5 (check with `python --version`)
 - pip / venv
 
 ## Installation

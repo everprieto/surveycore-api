@@ -8,7 +8,7 @@ REST API for SurveyCore — multi-language survey management with role-based acc
 
 | | |
 |---|---|
-| **Framework** | FastAPI 0.109 · Python 3.13 |
+| **Framework** | FastAPI 0.109 · Python 3.14.5 |
 | **ORM** | SQLAlchemy 2.0 |
 | **Database** | PostgreSQL on Neon (all environments) |
 | **Auth** | JWT HS256 · Microsoft Entra ID (JWKS) |
@@ -153,7 +153,7 @@ Default credentials:
 ### CI/CD Pipeline
 
 1. **Push to branch** → GitHub Actions triggers
-2. **Build & Test** → Python 3.13 env, install requirements
+2. **Build & Test** → Python 3.14.5 env, install requirements
 3. **Deploy to Azure App Service** → Using `Procfile` (Gunicorn + Uvicorn workers)
 4. **Database** → PostgreSQL on Neon (all environments)
 
@@ -200,7 +200,7 @@ See [NEON_SETUP.md](./NEON_SETUP.md), [CLAUDE.md](./CLAUDE.md), and [SETUP_LOCAL
 
 ## Local Development Checklist
 
-- [ ] Python 3.13+ installed
+- [ ] Python 3.14.5+ installed
 - [ ] `.venv` activated
 - [ ] `requirements.txt` installed
 - [ ] `.env` configured with `DATABASE_URL`, `SECRET_KEY`, Azure credentials
