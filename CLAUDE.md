@@ -1,7 +1,7 @@
 # SurveyCore API Agent — SurveyCore
 
 Agente especializado en la API de SurveyCore.  
-Stack: **FastAPI 0.109 · SQLAlchemy 2.0 · Python 3.13 · PostgreSQL on Neon**
+Stack: **FastAPI 0.136.0 · SQLAlchemy 2.0 · Python 3.14.5 · PostgreSQL on Neon**
 
 ---
 
